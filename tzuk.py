@@ -13,7 +13,7 @@ def main(argv):
                                      pandas_data.columns.get_loc("patient_nbr"), emergencyCodeToPatternIndex)
     for index, (key, value) in enumerate(patterns.items()):
         plt.plot(list(range(len(key))), list(key),"ro")
-        plt.savefig(argv[2] + "/pattern " + str(index) + " for " + str(len(key)))
+        plt.savefig(argv[2] + "/pattern " + str(index) + " for " + str(len(value)))
         plt.clf()
     print()
 
