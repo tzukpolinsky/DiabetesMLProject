@@ -27,13 +27,14 @@ import matplotlib.pyplot as plt
 data = pd.read_csv(r'C:\Users\rikai\Desktop\Uni\דוקטורט\קורסים\ML\dataset_diabetes\diabetic_data.csv')
 
 
-# Filtering and classifying 
+## Filtering and classifying 
 filtered_data = data[['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id',  'admission_source_id',
 'payer_code', 'number_diagnoses', 'change', 'diabetesMed', 'readmitted']]
 
 filtered_data = filtered_data.replace('?', np.nan)
+filtered_data = filtered_data.dropna()
 
-# age groups:
+# Age groups:
 age_groups = {
     '[0-10)': 0,
     '[10-20)': 1,
@@ -53,12 +54,22 @@ for age_group, replacement in age_groups.items():
 filtered_data = filtered_data.rename(columns={'age': 'age_group'})
 
 
-# payer code
+# "diabetesMed": Convert "Yes"/"No" to True/False
+filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
+# "change": Convert "Ch"/"No" to True/False
+filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
+
+
+filtered_data.head()
+
+
+# Payer code
 
 payer_codes = filtered_data['payer_code'].unique()
+
 # Define the payer code categories: 1 = self pay, 2 = mid class insurance, 3 = expensive/premium
 payer_code_categories = {
-    'nan': 'nan',
+   # 'nan': 'nan',
     'MC': '2',
     'MD': '2',
     'HM': '2',
@@ -80,8 +91,6 @@ payer_code_categories = {
 
 for payer_code_categories, replacement in payer_code_categories.items():
     filtered_data.loc[filtered_data['payer_code'] == payer_code_categories, 'payer_code'] = replacement
-
-filtered_data = filtered_data.dropna()
 
 # 
 ## For each sample in every patient_nbr, label according to the sample that followed it (did s/he return in less than 30 days on i+1)
