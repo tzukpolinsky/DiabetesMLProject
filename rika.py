@@ -84,3 +84,34 @@ for payer_code_categories, replacement in payer_code_categories.items():
 filtered_data = filtered_data.dropna()
 
 # 
+## For each sample in every patient_nbr, label according to the sample that followed it (did s/he return in less than 30 days on i+1)
+
+# Create the collapsed_data DataFrame
+collapsed_data = pd.DataFrame(columns=filtered_data.columns)
+collapsed_data_rows = []
+
+# Iterate over each row in the filtered_data DataFrame
+for indx1, row in filtered_data.iterrows():
+    patient_nbr = row['patient_nbr']
+    readmitted = row['readmitted']
+    
+    # Check if patient_nbr appears more than once
+    if filtered_data['patient_nbr'].value_counts()[patient_nbr] > 1:
+        # Find the index of the second occurrence of patient_nbr
+        indx2 = filtered_data[filtered_data['patient_nbr'] == patient_nbr].index[1]
+        
+        # Get the readmitted value for the second occurrence
+        re_admitted = filtered_data.loc[indx2, 'readmitted']
+        collapsed_data_rows.append(row)
+        
+        # readmitted_less_than_30? (based on the second visit)
+        if re_admitted == '>30':
+            collapsed_data_rows[-1]['readmitted_less_than_30'] = True
+        else:
+            collapsed_data_rows[-1]['readmitted_less_than_30'] = False
+
+# Create the collapsed_data DataFrame using concat
+collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
+
+collapsed_data.head()
+
