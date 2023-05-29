@@ -56,27 +56,26 @@ filtered_data = filtered_data.rename(columns={'age': 'age_group'})
 # payer code
 
 payer_codes = filtered_data['payer_code'].unique()
-
-# Define the payer code categories
+# Define the payer code categories: 1 = self pay, 2 = mid class insurance, 3 = expensive/premium
 payer_code_categories = {
     'nan': 'nan',
-    'MC': 'mid_class',
-    'MD': 'mid_class',
-    'HM': 'mid_class',
-    'UN': 'mid_class',
-    'BC': 'mid_class',
-    'SP': 'self_pay',
-    'CP': 'mid_class',
-    'SI': 'mid_class',
-    'DM': 'expensive',
-    'CM': 'expensive',
-    'CH': 'expensive',
-    'PO': 'mid_class',
-    'WC': 'mid_class',
-    'OT': 'mid_class',
-    'OG': 'mid_class',
-    'MP': 'expensive',
-    'FR': 'mid_class'
+    'MC': '2',
+    'MD': '2',
+    'HM': '2',
+    'UN': '2',
+    'BC': '2',
+    'SP': '1',
+    'CP': '2',
+    'SI': '2',
+    'DM': '3',
+    'CM': '3',
+    'CH': '3',
+    'PO': '2',
+    'WC': '2',
+    'OT': '2',
+    'OG': '2',
+    'MP': '3',
+    'FR': '2'
 }
 
 for payer_code_categories, replacement in payer_code_categories.items():
