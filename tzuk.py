@@ -44,10 +44,13 @@ def createLabels(path_to_data, col_filter=None):
                       'payer_code', 'number_diagnoses', 'change', 'diabetesMed', 'readmitted']
     data = pd.read_csv(path_to_data)
     ## Filtering and classifying
-    data = utils.prepareData(data,col_filter)
+    data = utils.prepareData(data, col_filter)
     print(len(data))
 
-
+def createTrainAndTest():
+    pass
+def runRandomForest():
+    pass
 def main(argv):
     createLabels(argv[1])
 
