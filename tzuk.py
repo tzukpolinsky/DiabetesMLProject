@@ -46,6 +46,7 @@ def createLabels(path_to_data, col_filter=None):
     ## Filtering and classifying
     data = utils.prepareData(data, col_filter)
     print(len(data))
+    return data
 
 def createTrainAndTest():
     pass
