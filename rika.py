@@ -24,7 +24,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-data = pd.read_csv(r'C:\Users\rikai\Desktop\Uni\דוקטורט\קורסים\ML\dataset_diabetes\diabetic_data.csv')
+data = pd.read_csv(r'.\data\diabetic_data.csv')
 
 
 ## Filtering and classifying 
@@ -114,7 +114,7 @@ for indx1, row in filtered_data.iterrows():
         collapsed_data_rows.append(row)
         
         # readmitted_less_than_30? (based on the second visit)
-        if re_admitted == '>30':
+        if re_admitted == '>30'
             collapsed_data_rows[-1]['readmitted_less_than_30'] = True
         else:
             collapsed_data_rows[-1]['readmitted_less_than_30'] = False
