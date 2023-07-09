@@ -39,19 +39,27 @@ def tag_readmitted(filtered_data, index, row):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id',
-                      'admission_source_id',
-                      'payer_code', 'number_diagnoses', 'change', 'diabetesMed', 'readmitted']
+        # col_filter = ['encounter_id', 'patient_nbr', 'age', 'admission_type_id',
+        #               'admission_source_id',
+        #               'payer_code', 'number_diagnoses', 'readmitted',
+        #               'num_medications', 'discharge_disposition_id']
+        col_filter = ['encounter_id', 'patient_nbr', 'age',
+                      'payer_code','readmitted']
     data = pd.read_csv(path_to_data)
     ## Filtering and classifying
     data = utils.prepareData(data, col_filter)
     print(len(data))
     return data
 
+
 def createTrainAndTest():
     pass
+
+
 def runRandomForest():
     pass
+
+
 def main(argv):
     createLabels(argv[1])
 

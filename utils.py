@@ -2,6 +2,17 @@ import pandas as pd
 import numpy as np
 import copy
 
+gender_categories = {
+    'Female': 0,
+    'Male': 1
+}
+race_categories = {
+    'Caucasian': 0,
+    'Asian': 1,
+    'AfricanAmerican': 2,
+    'Hispanic': 3,
+    'Other': 4,
+}
 payer_code_categories = {
     # 'nan': 'nan',
     'MC': '2',
@@ -67,18 +78,19 @@ def prepareData(data, col_filter):
 
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
     # "diabetesMed": Convert "Yes"/"No" to True/False
-    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
+    #filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
     # "change": Convert "Ch"/"No" to True/False
-    filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
+    #filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
+    filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
+    #filtered_data['race'] = filtered_data['race'].map(race_categories)
+    #filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
     # Payer code
-    payer_codes = filtered_data['payer_code'].unique()
     # Define the payer code categories: 1 = self pay, 2 = mid class insurance, 3 = expensive/premium
-
-    for payer_code_category, replacement in payer_code_categories.items():
-        filtered_data.loc[filtered_data['payer_code'] == payer_code_category, 'payer_code'] = replacement
-
+    # for payer_code_category, replacement in payer_code_categories.items():
+    #     filtered_data.loc[filtered_data['payer_code'] == payer_code_category, 'payer_code'] = replacement
     #
+    # #
     ## For each sample in every patient_nbr, label according to the sample that followed it (did s/he return in less than 30 days on i+1)
 
     # Create the collapsed_data DataFrame
@@ -89,14 +101,15 @@ def prepareData(data, col_filter):
     for indx1, row in filtered_data.iterrows():
         patient_nbr = row['patient_nbr']
         indx2 = filtered_data[filtered_data['patient_nbr'] == patient_nbr].index
-        if row['readmitted'] == 'NO':
-            continue
+        # if len(indx2) == 1:
+        #     continue
         if indx1 not in Y:
             for i, row2 in enumerate(indx2):
                 Y[row2] = copy.deepcopy(filtered_data.loc[row2])
-                Y[row2]['readmitted_less_than_30'] = 1
+                Y[row2]['readmitted_less_than_30'] = 0
                 if i + 1 < len(indx2):
-                    Y[row2]['readmitted_less_than_30'] = 0 if filtered_data.loc[list(indx2)[i + 1], 'readmitted'] == '<30' else 1
+                    Y[row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
+                                                                  list(indx2)[i + 1], 'readmitted'] == '<30' else 0
                     continue
 
     collapsed_data_rows = []
