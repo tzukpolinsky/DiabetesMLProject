@@ -7,6 +7,8 @@ from tzuk import createLabels
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
+
 from sklearn.metrics import classification_report, roc_curve, roc_auc_score
 from sklearn import tree
 import matplotlib.pyplot as plt
@@ -18,27 +20,16 @@ import xgboost as xgb
 def usingGridSearchCV(csv_path, result_path):
     data = createLabels(csv_path)
     data_encoded = data.copy()
-    data_encoded['age_group'] = data_encoded['age_group'].astype('category')
-    data_encoded['number_diagnoses'] = data_encoded['number_diagnoses'].astype('category')
-    data_encoded['change'] = data_encoded['change'].astype('category')
-    data_encoded['diabetesMed'] = data_encoded['diabetesMed'].astype('category')
-    data_encoded['diabetesMed'] = data_encoded['diabetesMed'].astype('category')
-    data_encoded['admission_source_id'] = data_encoded['admission_source_id'].astype(int)
-    data_encoded['admission_type_id'] = data_encoded['admission_type_id'].astype(int)
-    data_encoded['num_medications'] = data_encoded['num_medications'].astype(int)
-    data_encoded['payer_code'] = data_encoded['payer_code'].astype(int)
-    data_encoded['discharge_disposition_id'] = data_encoded['discharge_disposition_id'].astype(int)
     X = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     Y = data_encoded['readmitted_less_than_30'].astype(bool)
     param_grid = {
         'n_estimators': list(range(50, 400, 50)),
-        'max_depth': list(range(2, 15)),
-        'tree_method': ['gpu_hist'],
-        'enable_categorical':[True],
-        'subsample': [0.3,0.5,0.7,1],
-        'max_bin':[256,512,1024]
+        'max_depth': list(range(2, 20)),
+        'replacement': [True],
+        'sampling_strategy':[0.5,'not minority','all']
     }
-    rf = xgb.XGBClassifier()
+    # rf = xgb.XGBClassifier()
+    rf = BalancedRandomForestClassifier()
     result_dir = os.path.join(result_path, "randomForestParamTuningResultsGridSearch")
     if not os.path.isdir(result_dir):
         os.mkdir(result_dir)
@@ -48,7 +39,7 @@ def usingGridSearchCV(csv_path, result_path):
     for size in range(1, 100, 10):
         test_size = size / 100
         X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size)
-        grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, scoring='recall', n_jobs=4)
+        grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, scoring='recall', n_jobs=10)
 
         grid_search.fit(X_train, y_train)
 
@@ -95,7 +86,7 @@ def manual(csv_path, result_path):
     data_encoded['num_medications'] = data_encoded['num_medications'].astype(int)
     data_encoded['payer_code'] = data_encoded['payer_code'].astype(int)
     data_encoded['discharge_disposition_id'] = data_encoded['discharge_disposition_id'].astype(int)
-    X = data_encoded.drop(['readmitted', 'readmitted_less_than_30','encounter_id','patient_nbr'], axis=1)
+    X = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     Y = data_encoded['readmitted_less_than_30'].astype(bool)
     # Splitting data
     result_dir = os.path.join(result_path, "randomForestParamTuningResults")
@@ -108,8 +99,8 @@ def manual(csv_path, result_path):
             test_size = size / 100
             X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size)
             # Initialize a Random Forest
-            #rf = RandomForestClassifier(max_depth=depth, n_jobs=-1, max_features='auto', n_estimators=500)
-            rf = xgb.XGBClassifier(n_estimators = 350,tree_method="gpu_hist", max_depth = depth,enable_categorical=True)
+            # rf = RandomForestClassifier(max_depth=depth, n_jobs=-1, max_features='auto', n_estimators=500)
+            rf = xgb.XGBClassifier(n_estimators=350, tree_method="gpu_hist", max_depth=depth, enable_categorical=True)
             # Train the model
             rf.fit(X_train, y_train)
             y_pred = rf.predict(X_test)

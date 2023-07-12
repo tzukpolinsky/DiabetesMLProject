@@ -67,7 +67,27 @@ def groupByAttrIndexToDic(data, index_of_attr):
         results[index_value].append(row)
     return results
 
-
+def createLabels(path_to_data, col_filter=None):
+    if col_filter is None:
+        col_filter = ['encounter_id', 'patient_nbr', 'age', 'admission_type_id',
+                      'admission_source_id', 'diabetesMed',
+                      'payer_code', 'number_diagnoses', 'readmitted', 'change',
+                      'num_medications', 'discharge_disposition_id']
+        # col_filter = ['encounter_id', 'patient_nbr', 'age',
+        #               'payer_code','readmitted']
+    data = pd.read_csv(path_to_data)
+    ## Filtering and classifying
+    data = prepareData(data, col_filter)
+    data['age_group'] = data['age_group'].astype(int)
+    data['admission_type_id'] = data['admission_type_id'].astype(int)
+    data['admission_source_id'] = data['admission_source_id'].astype(int)
+    data['diabetesMed'] = data['diabetesMed'].astype(int)
+    data['payer_code'] = data['payer_code'].astype(int)
+    data['number_diagnoses'] = data['number_diagnoses'].astype(int)
+    data['change'] = data['change'].astype(int)
+    data['num_medications'] = data['num_medications'].astype(int)
+    data['discharge_disposition_id'] = data['discharge_disposition_id'].astype(int)
+    return data
 def prepareData(data, col_filter):
     filtered_data = data[col_filter]
     filtered_data = filtered_data.replace('?', np.nan)
@@ -77,44 +97,40 @@ def prepareData(data, col_filter):
         filtered_data.loc[filtered_data['age'] == age_group, 'age'] = replacement
 
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
-    # "diabetesMed": Convert "Yes"/"No" to True/False
-    #filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
-    # "change": Convert "Ch"/"No" to True/False
-    #filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
+    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
+    filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
-    #filtered_data['race'] = filtered_data['race'].map(race_categories)
-    #filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
-    # Payer code
-    # Define the payer code categories: 1 = self pay, 2 = mid class insurance, 3 = expensive/premium
-    # for payer_code_category, replacement in payer_code_categories.items():
-    #     filtered_data.loc[filtered_data['payer_code'] == payer_code_category, 'payer_code'] = replacement
-    #
-    # #
-    ## For each sample in every patient_nbr, label according to the sample that followed it (did s/he return in less than 30 days on i+1)
-
-    # Create the collapsed_data DataFrame
-    # collapsed_data = pd.DataFrame(columns=filtered_data.columns)
-    # Iterate over each row in the filtered_data DataFrame
     Y = {}
-
-    for indx1, row in filtered_data.iterrows():
-        patient_nbr = row['patient_nbr']
-        indx2 = filtered_data[filtered_data['patient_nbr'] == patient_nbr].index
-        # if len(indx2) == 1:
-        #     continue
-        if indx1 not in Y:
-            for i, row2 in enumerate(indx2):
-                Y[row2] = copy.deepcopy(filtered_data.loc[row2])
-                Y[row2]['readmitted_less_than_30'] = 0
-                if i + 1 < len(indx2):
-                    Y[row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
-                                                                  list(indx2)[i + 1], 'readmitted'] == '<30' else 0
-                    continue
+    for patient_nbr,group in filtered_data.groupby('patient_nbr'):
+        if len(group) ==1:
+            continue
+        Y[patient_nbr] ={}
+        indx2 = group.index
+        for i, row2 in enumerate(indx2):
+            Y[patient_nbr][row2] = copy.deepcopy(group.loc[row2])
+            Y[patient_nbr][row2]['readmitted_less_than_30'] = 0
+            if i + 1 < len(indx2):
+                Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
+                                                              list(indx2)[i + 1], 'readmitted'] == '<30' else 0
+    # for indx1, row in filtered_data.iterrows():
+    #     patient_nbr = row['patient_nbr']
+    #     indx2 = filtered_data[filtered_data['patient_nbr'] == patient_nbr].index
+    #     # if len(indx2) == 1:
+    #     #     continue
+    #     if indx1 not in Y:
+    #         for i, row2 in enumerate(indx2):
+    #             Y[row2] = copy.deepcopy(filtered_data.loc[row2])
+    #             Y[row2]['readmitted_less_than_30'] = 0
+    #             if i + 1 < len(indx2):
+    #                 Y[row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
+    #                                                               list(indx2)[i + 1], 'readmitted'] == '<30' else 0
+    #                 continue
 
     collapsed_data_rows = []
-    for key, value in Y.items():
-        collapsed_data_rows.append(value)
+    for patient_nbr, values in Y.items():
+        for row_num,row in values.items():
+            collapsed_data_rows.append(row)
     # Create the collapsed_data DataFrame using concat
     collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
 
