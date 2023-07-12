@@ -22,7 +22,7 @@ import xgboost as xgb
 
 X = []
 Y = []
-TEST_SIZE = 0.25
+TEST_SIZE = 0.5
 
 
 def objectiveSVC(trial):
@@ -35,44 +35,44 @@ def objectiveSVC(trial):
     classifier_obj = sklearn.svm.SVC(C=svc_c, gamma="auto")
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_test)
-    accuracy = sklearn.metrics.balanced_accuracy_score(y_test, y_pred)
+    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
     return accuracy
 
 
-def objectiveBalancedRandomForestClassifier(trial):
+def objectiveBalancedRandomForestClassifier(trail):
     global TEST_SIZE
     global X
     global Y
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
     params = {
-        'n_estimators': list(range(50, 400, 50)),
-        'max_depth': list(range(2, 20)),
-        'replacement': [True],
-        'sampling_strategy': [0.5, 'not minority', 'all']
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(50, 400, 50))),
+        'max_depth': trail.suggest_int('max_depth', 2, 30),
+        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
     }
-    classifier_obj = BalancedRandomForestClassifier(**params)
+    classifier_obj = BalancedRandomForestClassifier(n_estimators=params['n_estimators'], max_depth=params['max_depth'],
+                                                    replacement=True, sampling_strategy=params['sampling_strategy'])
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_test)
 
-    accuracy = sklearn.metrics.balanced_accuracy_score(y_test, y_pred)
+    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
     return accuracy
 
 
-def objectiveBalancedBaggingClassifier(trial):
+def objectiveBalancedBaggingClassifier(trail):
     global TEST_SIZE
     global X
     global Y
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
     params = {
-        'n_estimators': list(range(50, 400, 50)),
-        'replacement': [True],
-        'sampling_strategy': [0.5, 'not minority', 'all']
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(50, 400, 50))),
+        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
     }
-    classifier_obj = BalancedBaggingClassifier(**params)
+    classifier_obj = BalancedBaggingClassifier(replacement=True, sampling_strategy=params['sampling_strategy'],
+                                               n_estimators=params['n_estimators'])
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_test)
 
-    accuracy = sklearn.metrics.balanced_accuracy_score(y_test, y_pred)
+    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
     return accuracy
 
 
@@ -82,14 +82,14 @@ def objectiveRandomForest(trial):
     global Y
     X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
     params = {
-        'n_estimators': list(range(50, 400, 50)),
-        'max_depth': list(range(2, 20)),
+        'n_estimators': trial.suggest_categorical('n_estimators', list(range(50, 400, 50))),
+        'max_depth': trial.suggest_int('max_depth',2,30),
     }
-    classifier_obj = sklearn.ensemble.RandomForestClassifier(**params)
+    classifier_obj = sklearn.ensemble.RandomForestClassifier(max_depth=params['max_depth'],n_estimators=params['n_estimators'])
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_test)
 
-    accuracy = sklearn.metrics.balanced_accuracy_score(y_test, y_pred)
+    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
     return accuracy
 
 
@@ -137,7 +137,7 @@ def objectiveXgboost(trial):
     bst = xgb.train(param, dtrain)
     preds = bst.predict(dvalid)
     pred_labels = np.rint(preds)
-    accuracy = sklearn.metrics.balanced_accuracy_score(valid_y, pred_labels)
+    accuracy = sklearn.metrics.recall_score(valid_y, pred_labels)
     return accuracy
 
 
@@ -165,7 +165,7 @@ def objectiveLGBM(trial):
     gbm = lgb.train(param, dtrain)
     preds = gbm.predict(valid_x)
     pred_labels = np.rint(preds)
-    accuracy = sklearn.metrics.balanced_accuracy_score(valid_y, pred_labels)
+    accuracy = sklearn.metrics.recall_score(valid_y, pred_labels)
     return accuracy
 
 
@@ -174,21 +174,21 @@ if __name__ == "__main__":
     data_encoded = data.copy()
     X = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     Y = data_encoded['readmitted_less_than_30'].astype(bool)
-    functions = [[objectiveLGBM, 'lgbm'], [objectiveXgboost, 'xgboost'], [objectiveSVC, "SVC"],
+    functions = [[objectiveLGBM, 'lgbm'], [objectiveXgboost, 'xgboost'],
                  [objectiveRandomForest, 'RandomForest'],
                  [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
                  [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"]]
     result_path = sys.argv[2]
     if not os.path.isdir(result_path):
         os.mkdir(result_path)
-    result_path += datetime.datetime.now().strftime("%y%m%d%H%M%S")
+    result_path = os.path.join(result_path,datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
     for objective, study_name in functions:
 
         study = optuna.create_study(direction="maximize", study_name=study_name)
-        study.optimize(objective, n_trials=300, n_jobs=6, show_progress_bar=True)
+        study.optimize(objective, n_trials=300, n_jobs=-1, show_progress_bar=True)
         with open(result_path + "/" + study_name, "w") as file:
-            print("Number of finished trials: {}".format(len(study.trials)))
+            print("Number of finished trials for {}: {}".format(study_name,len(study.trials)))
             file.write("Number of finished trials: {}\n".format(len(study.trials)))
 
             print("Best trial:")
