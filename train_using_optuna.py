@@ -22,7 +22,7 @@ import xgboost as xgb
 
 X = []
 Y = []
-TEST_SIZE = 0.5
+TEST_SIZE = 0.1
 
 
 def objectiveSVC(trial):
@@ -183,6 +183,7 @@ if __name__ == "__main__":
         os.mkdir(result_path)
     result_path = os.path.join(result_path,datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
     for objective, study_name in functions:
 
         study = optuna.create_study(direction="maximize", study_name=study_name)
