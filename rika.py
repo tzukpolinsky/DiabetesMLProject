@@ -124,3 +124,9 @@ collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
 
 collapsed_data.head()
 
+# descriptive statstemp_df = filtered_data.drop_duplicates(subset='patient_nbr')
+# Calculate mean and standard deviation for age_groupage_group_mean = temp_df['age_group'].mean()age_group_std = temp_df['age_group'].std()
+# Calculate the percentage of males and femalesgender_counts = temp_df['gender'].value_counts()gender_percentage = gender_counts / len(temp_df) * 100
+# Calculate the percentages of payer_code_categoriespayer_code_counts = temp_df['payer_code'].value_counts()payer_code_percentage = payer_code_counts / len(temp_df) * 100
+descriptive_table = pd.DataFrame({    'Variable': ['Age Group', 'Gender', 'Payer Code'],    'Mean': [age_group_mean, '', ''],    'Standard Deviation': [age_group_std, '', ''],    'Percentage Male': ['', gender_percentage['Male'], ''],    'Percentage Female': ['', gender_percentage['Female'], ''],    'Percentage Mid Class': ['', '', payer_code_percentage['mid_class']],    'Percentage Expensive': ['', '', payer_code_percentage['expensive']],    'Percentage Self Pay': ['', '', payer_code_percentage['self_pay']],})
+print(descriptive_table)
