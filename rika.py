@@ -128,5 +128,130 @@ collapsed_data.head()
 # Calculate mean and standard deviation for age_groupage_group_mean = temp_df['age_group'].mean()age_group_std = temp_df['age_group'].std()
 # Calculate the percentage of males and femalesgender_counts = temp_df['gender'].value_counts()gender_percentage = gender_counts / len(temp_df) * 100
 # Calculate the percentages of payer_code_categoriespayer_code_counts = temp_df['payer_code'].value_counts()payer_code_percentage = payer_code_counts / len(temp_df) * 100
-descriptive_table = pd.DataFrame({    'Variable': ['Age Group', 'Gender', 'Payer Code'],    'Mean': [age_group_mean, '', ''],    'Standard Deviation': [age_group_std, '', ''],    'Percentage Male': ['', gender_percentage['Male'], ''],    'Percentage Female': ['', gender_percentage['Female'], ''],    'Percentage Mid Class': ['', '', payer_code_percentage['mid_class']],    'Percentage Expensive': ['', '', payer_code_percentage['expensive']],    'Percentage Self Pay': ['', '', payer_code_percentage['self_pay']],})
+descriptive_table = collapsed_data({    'Variable': ['Age Group', 'Gender', 'Payer Code'],    'Mean': [age_group_mean, '', ''],    'Standard Deviation': [age_group_std, '', ''],    'Percentage Male': ['', gender_percentage['Male'], ''],    'Percentage Female': ['', gender_percentage['Female'], ''],    'Percentage Mid Class': ['', '', payer_code_percentage['mid_class']],    'Percentage Expensive': ['', '', payer_code_percentage['expensive']],    'Percentage Self Pay': ['', '', payer_code_percentage['self_pay']],})
 print(descriptive_table)
+
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Data Summary
+print(filtered_data.describe())
+
+
+## percent of less than 30
+total_readmitted_less_than_30 = (filtered_data['readmitted'] == '<30').sum()
+total_readmitted_greater_than_30 = (filtered_data['readmitted'] == '>30').sum()
+
+# Calculate the total number of patients in the dataset
+total_patients = len(filtered_data)
+
+# Calculate the percentages
+percentage_readmitted_less_than_30 = (total_readmitted_less_than_30 / total_patients) * 100
+percentage_readmitted_greater_than_30 = (total_readmitted_greater_than_30 / total_patients) * 100
+
+# Print the percentages
+print(f"Percentage of patients readmitted within 30 days ('<30'): {percentage_readmitted_less_than_30:.2f}%")
+print(f"Percentage of patients readmitted after 30 days ('>30'): {percentage_readmitted_greater_than_30:.2f}%")
+
+## Change in meds && readmission rates
+num_patients_on_medication = filtered_data['diabetesMed'].sum()
+print(f"The number of patients with yes medication: {num_patients_on_medication}")
+total_change_meds = filtered_data['change'].value_counts()
+total_readmitted = filtered_data['readmitted'].value_counts()
+total_readmitted_change_meds = filtered_data.groupby(['change', 'readmitted']).size().reset_index(name='count')
+
+count_percentage_df = total_readmitted_change_meds.pivot_table(index='change', columns='readmitted', values='count', fill_value=0)
+
+# Calc %%
+count_percentage_df['Total'] = count_percentage_df.sum(axis=1)
+count_percentage_df['Percentage <30'] = (count_percentage_df['<30'] / count_percentage_df['Total'] * 100).round(2)
+count_percentage_df['Percentage >30'] = (count_percentage_df['>30'] / count_percentage_df['Total'] * 100).round(2)
+
+# Print
+for change_meds in count_percentage_df.index:
+    count_less_than_30 = count_percentage_df.loc[change_meds, '<30']
+    count_greater_than_30 = count_percentage_df.loc[change_meds, '>30']
+    percentage_less_than_30 = count_percentage_df.loc[change_meds, 'Percentage <30']
+    percentage_greater_than_30 = count_percentage_df.loc[change_meds, 'Percentage >30']
+    print(f"Change in Medication: {change_meds}")
+    print(f"Readmitted '<30': {count_less_than_30} ({percentage_less_than_30}%)")
+    print(f"Readmitted '>30': {count_greater_than_30} ({percentage_greater_than_30}%)")
+    print()
+
+
+
+#### FIGURES
+# Correlation Analysis
+correlation_matrix = filtered_data.corr()
+plt.figure(figsize=(10, 8))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f')
+plt.title('Correlation Matrix')
+plt.show()
+
+## Diabetes Medication and Readmission
+plt.figure(figsize=(8, 6))
+sns.countplot(data=filtered_data, x='diabetesMed', hue='readmitted')
+plt.xlabel('Diabetes Medication')
+plt.ylabel('Count')
+plt.title('Diabetes Medication and Readmission')
+plt.legend(title='Readmitted', loc='upper right')
+plt.show()
+
+## Admission Type and Source
+plt.figure(figsize=(12, 6))
+sns.countplot(data=filtered_data, x='admission_type_id', hue='admission_source_id')
+plt.xlabel('Admission Type')
+plt.ylabel('Count')
+plt.title('Admission Type and Source')
+plt.legend(title='Admission Source', loc='upper right')
+plt.show()
+
+## Race and Gender
+plt.figure(figsize=(10, 6))
+plt.subplot(1, 2, 1)
+filtered_data['race'].value_counts().plot(kind='pie', autopct='%1.1f%%', colors=sns.color_palette('pastel'))
+plt.title('Distribution of Race')
+
+plt.subplot(1, 2, 2)
+filtered_data['gender'].value_counts().plot(kind='pie', autopct='%1.1f%%', colors=sns.color_palette('pastel'))
+plt.title('Distribution of Gender')
+
+plt.tight_layout()
+plt.show()
+
+## Num of diagnoses
+plt.figure(figsize=(8, 6))
+sns.histplot(filtered_data['number_diagnoses'], bins=20, kde=False)
+plt.xlabel('Number of Diagnoses')
+plt.ylabel('Frequency')
+plt.title('Distribution of Number of Diagnoses')
+plt.show()
+
+## Age group && num of diags
+plt.figure(figsize=(8, 6))
+sns.boxplot(data=filtered_data, x='age_group', y='number_diagnoses')
+plt.xlabel('Age Group')
+plt.ylabel('Number of Diagnoses')
+plt.title('Age Group and Number of Diagnises')
+Xlbls = ['0-10', '10-20', '20-40', '40-60', '60-100']
+plt.xticks(ticks=range(len(Xlbls)), labels=Xlbls)
+plt.show()
+
+
+# Change in Medication and Readmission
+plt.figure(figsize=(8, 6))
+sns.countplot(data=filtered_data, x='change', hue='readmitted')
+plt.xlabel('Change in Medication')
+plt.ylabel('Count')
+plt.title('Change in Medication and Readmission')
+plt.legend(title='Readmitted', loc='upper right')
+plt.show()
+
+# Readmission Status
+plt.figure(figsize=(8, 6))
+sns.countplot(data=filtered_data, x='readmitted')
+plt.xlabel('Readmission Status')
+plt.ylabel('Count')
+plt.title('Readmission Status')
+plt.show()
