@@ -9,6 +9,7 @@ We optimize both the choice of booster model and their hyperparameters.
 import datetime
 import os.path
 import sys
+from sklearn.tree import plot_tree
 
 import numpy as np
 import optuna
@@ -66,6 +67,7 @@ def objectiveSVC(trial, best_params = None):
             y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
             fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
             roc_auc = auc(fpr, tpr)
+            plt.clf()
             plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
             plt.plot([0, 1], [0, 1], 'k--')
             plt.xlim([0.0, 1.0])
@@ -74,7 +76,8 @@ def objectiveSVC(trial, best_params = None):
             plt.ylabel('True Positive Rate')
             plt.title('Receiver Operating Characteristic (ROC)')
             plt.legend(loc="lower right")
-            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'), dpi=300)
+            
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -109,6 +112,7 @@ def objectiveBalancedRandomForestClassifier(trial, best_params = None):
             y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
             fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
             roc_auc = auc(fpr, tpr)
+            plt.clf()
             plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
             plt.plot([0, 1], [0, 1], 'k--')
             plt.xlim([0.0, 1.0])
@@ -118,6 +122,11 @@ def objectiveBalancedRandomForestClassifier(trial, best_params = None):
             plt.title('Receiver Operating Characteristic (ROC)')
             plt.legend(loc="lower right")
             plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
+            plt.clf()
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -151,6 +160,7 @@ def objectiveBalancedBaggingClassifier(trial, best_params = None):
             y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
             fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
             roc_auc = auc(fpr, tpr)
+            plt.clf()
             plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
             plt.plot([0, 1], [0, 1], 'k--')
             plt.xlim([0.0, 1.0])
@@ -160,6 +170,11 @@ def objectiveBalancedBaggingClassifier(trial, best_params = None):
             plt.title('Receiver Operating Characteristic (ROC)')
             plt.legend(loc="lower right")
             plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
+            plt.clf()
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -192,6 +207,7 @@ def objectiveRandomForest(trial, best_params = None):
             y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
             fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
             roc_auc = auc(fpr, tpr)
+            plt.clf()
             plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
             plt.plot([0, 1], [0, 1], 'k--')
             plt.xlim([0.0, 1.0])
@@ -201,6 +217,11 @@ def objectiveRandomForest(trial, best_params = None):
             plt.title('Receiver Operating Characteristic (ROC)')
             plt.legend(loc="lower right")
             plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
+
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
