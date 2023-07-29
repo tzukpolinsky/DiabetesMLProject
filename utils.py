@@ -69,7 +69,7 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'age', 'admission_type_id',
+        col_filter = ['encounter_id', 'patient_nbr','race','gender', 'age', 'admission_type_id','time_in_hospital','num_procedures',
                       'admission_source_id', 'diabetesMed',
                       'payer_code', 'number_diagnoses', 'readmitted', 'change',
                       'num_medications', 'discharge_disposition_id']
@@ -87,6 +87,10 @@ def createLabels(path_to_data, col_filter=None):
     data['change'] = data['change'].astype(int)
     data['num_medications'] = data['num_medications'].astype(int)
     data['discharge_disposition_id'] = data['discharge_disposition_id'].astype(int)
+    data['time_in_hospital'] = data['time_in_hospital'].astype(int)
+    data['race'] = data['race'].astype(int)
+    data['gender'] = data['gender'].astype(int)
+    data['num_procedures'] = data['num_procedures'].astype(int)
     return data
 def prepareData(data, col_filter):
     filtered_data = data[col_filter]
@@ -100,7 +104,10 @@ def prepareData(data, col_filter):
     filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
     filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
+    filtered_data['race'] = filtered_data['race'].map(race_categories)
+    filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
+#    filtered_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\filtered_data.csv')
     Y = {}
     for patient_nbr,group in filtered_data.groupby('patient_nbr'):
         if len(group) ==1:
@@ -137,6 +144,8 @@ def prepareData(data, col_filter):
     collapsed_data.head()
     collapsed_data.to_csv('dataCleaner.csv')
     return collapsed_data
+
+
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):
