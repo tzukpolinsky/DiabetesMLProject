@@ -9,10 +9,11 @@ We optimize both the choice of booster model and their hyperparameters.
 import datetime
 import os.path
 import sys
+from sklearn.tree import plot_tree
 
 import numpy as np
 import optuna
-
+from os.path import join
 import lightgbm as lgb
 import sklearn.datasets
 import sklearn.metrics
@@ -21,6 +22,17 @@ from imblearn.ensemble import BalancedBaggingClassifier, BalancedRandomForestCla
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from utils import createLabels
 import xgboost as xgb
+import pandas as pd
+import numpy as np
+from copulas.univariate import GaussianKDE
+from copulas.bivariate import Clayton
+from copulas.multivariate import GaussianMultivariate
+from copulas.visualization import scatter_2d
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import roc_curve, auc
+
+
 
 X = []
 Y = []
@@ -29,7 +41,7 @@ VALID_SIZE = 0.15 / 0.85    # We aim to get a 15% of the data as validation test
                             # so we need to get 0.15/0.85 part of the data.  
 TEST_SIZE = 0.15
 ENABLE_KFOLD = True
-
+RESULTS_PATH = ''
 def objectiveSVC(trial, best_params = None):
     global VALID_SIZE
     global X
@@ -50,6 +62,22 @@ def objectiveSVC(trial, best_params = None):
         return score
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_valid)
+    if best_params is not None:
+            model_name = 'SVC'
+            y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
+            fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
+            roc_auc = auc(fpr, tpr)
+            plt.clf()
+            plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC)')
+            plt.legend(loc="lower right")
+            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'), dpi=300)
+            
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -76,9 +104,29 @@ def objectiveBalancedRandomForestClassifier(trial, best_params = None):
         recall_scorer = make_scorer(recall_score)
         score = cross_val_score(classifier_obj, X, Y, cv=kfold, scoring=recall_scorer).mean()
         return score
+
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_valid)
-
+    if best_params is not None:
+            model_name = 'BalancedRandomForest'
+            y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
+            fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
+            roc_auc = auc(fpr, tpr)
+            plt.clf()
+            plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC)')
+            plt.legend(loc="lower right")
+            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
+            plt.clf()
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -107,7 +155,26 @@ def objectiveBalancedBaggingClassifier(trial, best_params = None):
         return score
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_valid)
-
+    if best_params is not None:
+            model_name = 'BalancedBagging'
+            y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
+            fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
+            roc_auc = auc(fpr, tpr)
+            plt.clf()
+            plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC)')
+            plt.legend(loc="lower right")
+            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
+            plt.clf()
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -135,7 +202,26 @@ def objectiveRandomForest(trial, best_params = None):
         return score
     classifier_obj.fit(X_train, y_train)
     y_pred = classifier_obj.predict(X_valid)
+    if best_params is not None:
+            model_name = 'RandomForest'
+            y_pred_prob = classifier_obj.predict_proba(X_valid)[:, 1]
+            fpr, tpr, _ = roc_curve(y_valid, y_pred_prob)
+            roc_auc = auc(fpr, tpr)
+            plt.clf()
+            plt.plot(fpr, tpr, label=f'{model_name} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC)')
+            plt.legend(loc="lower right")
+            plt.savefig(join(RESULTS_PATH,f'{model_name}.png'))
+            chosen_tree = classifier_obj.estimators_[0]
 
+            plt.figure(figsize=(20, 10))
+            plot_tree(chosen_tree, filled=True, feature_names=X_all.columns, class_names=y_all.name, rounded=True)
+            plt.savefig(join(RESULTS_PATH,f'{model_name}_tree_plot.png'))
     accuracy = sklearn.metrics.recall_score(y_valid, y_pred)
     return accuracy
 
@@ -304,30 +390,48 @@ def objectiveLGBM(trial, best_params = None):
     preds = gbm.predict(X_valid)
     pred_labels = np.rint(preds)
     accuracy = sklearn.metrics.recall_score(y_valid, pred_labels)
+
     return accuracy
 
 
 if __name__ == "__main__":
-    data = createLabels(sys.argv[1])
+    DATA_PATH =  r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\diabetic_data.csv'
+    SAVE_PATH =  r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\results'
+    data = createLabels(DATA_PATH)
     print('start data handling')
     data_encoded = data.copy()
     X_all = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     y_all = data_encoded['readmitted_less_than_30'].astype(bool)
+    # positive_samples = X_all[y_all == True]
+    # negative_samples = X_all[y_all == False]
+    
+    # copula_model_positive = GaussianMultivariate()
+    # copula_model_negative = GaussianMultivariate()
+    # copula_model_positive.fit(positive_samples)
+    # copula_model_negative.fit(negative_samples)
+    # num_samples_per_class = 10000
+    # synthetic_positive_samples = copula_model_positive.sample(num_samples_per_class)
+    # synthetic_negative_samples = copula_model_negative.sample(num_samples_per_class)
+    # synthetic_data_x = pd.concat([synthetic_positive_samples, synthetic_negative_samples], ignore_index=True)
+    # synthetic_data_y = pd.Series([True] * num_samples_per_class + [False] * num_samples_per_class)
+
     X, X_test, Y, Y_test = train_test_split(X_all, y_all, test_size=VALID_SIZE, stratify=y_all)
-    functions = [[objectiveLGBM, 'lgbm'], [objectiveXgboost, 'xgboost'],
-                 [objectiveRandomForest, 'RandomForest'],
-                 [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
-                 [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"]]
-    result_path = sys.argv[2]
+    functions = [[objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
+                [objectiveLGBM, 'lgbm'],
+                [objectiveXgboost, 'xgboost'],
+                [objectiveRandomForest, 'RandomForest'],
+                [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"]]
+    result_path = SAVE_PATH
     if not os.path.isdir(result_path):
         os.mkdir(result_path)
     result_path = os.path.join(result_path,datetime.datetime.now().strftime("%y%m%d%H%M%S"))
+    RESULTS_PATH = result_path
     os.mkdir(result_path)
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     for objective, study_name in functions:
         print(study_name)
         study = optuna.create_study(direction="maximize", study_name=study_name)
-        study.optimize(objective, n_trials=300, n_jobs=-1, show_progress_bar=True)
+        study.optimize(objective, n_trials=2, n_jobs=-1, show_progress_bar=True)
         total_score = objective(trial = None , best_params = study.best_trial.params)
         with open(result_path + "/" + study_name, "w") as file:
             print("Number of finished trials for {}: {}".format(study_name,len(study.trials)))
@@ -348,3 +452,6 @@ if __name__ == "__main__":
                 file.write("    {}: {}\n".format(key, value))
             print(f'Score on test: {total_score}')
             file.write(f'Score on test: {total_score}')
+
+
+
