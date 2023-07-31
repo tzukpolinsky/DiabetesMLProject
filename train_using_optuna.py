@@ -25,12 +25,15 @@ from optuna.visualization import plot_optimization_history, plot_intermediate_va
 from sklearn.model_selection import train_test_split
 from utils import createLabels
 import xgboost as xgb
-from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc
+from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
+    average_precision_score, fbeta_score, zero_one_loss
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
 Y = []
 TEST_SIZE = 0.25
+METRIC = None
+METRIC_PARAMS = None
 
 
 def objectiveSVC(trial):
@@ -43,7 +46,7 @@ def objectiveSVC(trial):
     classifier_obj = sklearn.svm.SVC(C=svc_c, gamma="auto")
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred)
     return accuracy
 
 
@@ -61,7 +64,7 @@ def objectiveGradientBoostingClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred)
     return accuracy
 
 
@@ -112,7 +115,7 @@ def objectiveEasyEnsembleClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
     return accuracy
 
 
@@ -131,7 +134,7 @@ def objectiveRUSBoostClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
     return accuracy
 
 
@@ -150,7 +153,7 @@ def objectiveBalancedRandomForestClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
     return accuracy
 
 
@@ -168,7 +171,7 @@ def objectiveBalancedBaggingClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
     return accuracy
 
 
@@ -186,7 +189,7 @@ def objectiveRandomForest(trial):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = balanced_accuracy_score(y_test, y_pred)
+    accuracy = METRIC(y_test, y_pred)
     return accuracy
 
 
@@ -233,7 +236,7 @@ def objectiveXgboost(trial):
     bst = xgb.train(param, dtrain)
     preds = bst.predict(dvalid)
     pred_labels = np.rint(preds)
-    accuracy = balanced_accuracy_score(valid_y, pred_labels)
+    accuracy = METRIC(valid_y, pred_labels)
     return accuracy
 
 
@@ -261,7 +264,7 @@ def objectiveLGBM(trial):
     gbm = lgb.train(param, dtrain)
     preds = gbm.predict(valid_x)
     pred_labels = np.rint(preds)
-    accuracy = balanced_accuracy_score(valid_y, pred_labels)
+    accuracy = METRIC(valid_y, pred_labels)
     return accuracy
 
 
@@ -343,43 +346,50 @@ if __name__ == "__main__":
     result_path = os.path.join(result_path, datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
     n_trials = int(sys.argv[3])
-    for objective, study_name in functions:
-        study = optuna.create_study(direction="maximize", study_name=study_name)
-        study.optimize(objective, n_trials=n_trials, n_jobs=4, show_progress_bar=True)
-        os.mkdir(result_path + "/" + study_name)
+    metrics = [average_precision_score, balanced_accuracy_score, auc, f1_score, fbeta_score, zero_one_loss]
+    metrics_params = [{'average': 'macro'}, {}, {}, {'average': 'macro'}, {'average': 'macro', 'beta': 2.0},
+                      {'normalize': True}]
+    for i in range(len(metrics)):
+        METRIC = metrics[i]
+        METRIC_PARAMS = metrics_params[i]
+        for objective, study_name in functions:
+            print("for the metric {}".format(METRIC.__name__))
+            study = optuna.create_study(direction="maximize", study_name=study_name)
+            study.optimize(objective, n_trials=n_trials, n_jobs=4, show_progress_bar=True)
+            os.mkdir(result_path + "/" + study_name)
 
-        with open(result_path + "/" + study_name + "/results.txt", "w") as file:
-            print("Number of finished trials for {}: {}".format(study_name, len(study.trials)))
-            file.write("Number of finished trials: {}\n".format(len(study.trials)))
-            print("Best trial:")
-            file.write("Best trial:\n")
-            trial = study.best_trial
-            print("  Value: {}".format(trial.value))
-            file.write("  Value: {}\n".format(trial.value))
-            print("  Params: ")
-            file.write("  Params: \n")
-            for key, value in trial.params.items():
-                print("    {}: {}".format(key, value))
-                file.write("    {}: {}\n".format(key, value))
-            test_results, classifier_obj = get_test_results(study_name, trial.params, X, x_test, Y, y_test)
-            print("classification_report on test: ")
-            print(str(test_results))
-            file.write("accuracy on test:\n")
-            file.write(str(test_results))
-            joblib.dump(study, result_path + "/study.pkl")
-            plot_save_path = result_path + "/" + study_name + "/"
-            fig = plot_optimization_history(study)
-            fig.write_image(plot_save_path + "plot_optimization_history.png")
-            y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
-            fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
-            roc_auc = auc(fpr, tpr)
-            plt.clf()
-            plt.plot(fpr, tpr, label=f'{study_name} (area = {roc_auc:.2f})')
-            plt.plot([0, 1], [0, 1], 'k--')
-            plt.xlim([0.0, 1.0])
-            plt.ylim([0.0, 1.05])
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic (ROC)')
-            plt.legend(loc="lower right")
-            plt.savefig(plot_save_path + "/roc_curve.png", dpi=300)
+            with open(result_path + "/" + study_name + "/results.txt", "w") as file:
+                print("Number of finished trials for {}: {} for metric {}".format(study_name, len(study.trials),METRIC.__name__))
+                file.write("Number of finished trials: {} for metric {}\n".format(len(study.trials),METRIC.__name__))
+                print("Best trial:")
+                file.write("Best trial:\n")
+                trial = study.best_trial
+                print("  Value: {}".format(trial.value))
+                file.write("  Value: {}\n".format(trial.value))
+                print("  Params: ")
+                file.write("  Params: \n")
+                for key, value in trial.params.items():
+                    print("    {}: {}".format(key, value))
+                    file.write("    {}: {}\n".format(key, value))
+                test_results, classifier_obj = get_test_results(study_name, trial.params, X, x_test, Y, y_test)
+                print("classification_report on test: ")
+                print(str(test_results))
+                file.write("accuracy on test:\n")
+                file.write(str(test_results))
+                joblib.dump(study, result_path + "/study.pkl")
+                plot_save_path = result_path + "/" + study_name + "/"
+                fig = plot_optimization_history(study)
+                fig.write_image(plot_save_path + "plot_optimization_history.png")
+                y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
+                fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+                roc_auc = auc(fpr, tpr)
+                plt.clf()
+                plt.plot(fpr, tpr, label=f'{study_name} (area = {roc_auc:.2f})')
+                plt.plot([0, 1], [0, 1], 'k--')
+                plt.xlim([0.0, 1.0])
+                plt.ylim([0.0, 1.05])
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.title('Receiver Operating Characteristic (ROC)')
+                plt.legend(loc="lower right")
+                plt.savefig(plot_save_path + "/roc_curve.png", dpi=300)
