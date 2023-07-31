@@ -19,12 +19,13 @@ import sklearn.datasets
 import sklearn.metrics
 from imblearn.ensemble import BalancedBaggingClassifier, BalancedRandomForestClassifier, RUSBoostClassifier, \
     EasyEnsembleClassifier
+from matplotlib import pyplot as plt
 from optuna.visualization import plot_optimization_history, plot_intermediate_values, plot_param_importances, \
     plot_slice, plot_contour, plot_parallel_coordinate
 from sklearn.model_selection import train_test_split
 from utils import createLabels
 import xgboost as xgb
-from sklearn.metrics import classification_report, recall_score
+from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
@@ -36,13 +37,13 @@ def objectiveSVC(trial):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
 
     svc_c = trial.suggest_float("svc_c", 1e-10, 1e10, log=True)
     classifier_obj = sklearn.svm.SVC(C=svc_c, gamma="auto")
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -50,7 +51,7 @@ def objectiveGradientBoostingClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 50))),
         'max_depth': trail.suggest_int('max_depth', 2, 30),
@@ -60,7 +61,7 @@ def objectiveGradientBoostingClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -68,7 +69,7 @@ def objectiveXGBoostPruning(trial):
     global TEST_SIZE
     global X
     global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE)
+    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     dtrain = xgb.DMatrix(train_x, label=train_y)
     param = {
         "verbosity": 0,
@@ -101,7 +102,7 @@ def objectiveEasyEnsembleClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
@@ -111,7 +112,7 @@ def objectiveEasyEnsembleClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -119,7 +120,7 @@ def objectiveRUSBoostClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all']),
@@ -130,7 +131,7 @@ def objectiveRUSBoostClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -138,7 +139,7 @@ def objectiveBalancedRandomForestClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'max_depth': trail.suggest_int('max_depth', 2, 30),
@@ -149,7 +150,7 @@ def objectiveBalancedRandomForestClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -157,7 +158,7 @@ def objectiveBalancedBaggingClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
@@ -167,7 +168,7 @@ def objectiveBalancedBaggingClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = sklearn.metrics.recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -175,7 +176,7 @@ def objectiveRandomForest(trial):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE)
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trial.suggest_categorical('n_estimators', list(range(50, 400, 10))),
         'max_depth': trial.suggest_int('max_depth', 2, 30),
@@ -185,7 +186,7 @@ def objectiveRandomForest(trial):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = recall_score(y_test, y_pred)
+    accuracy = balanced_accuracy_score(y_test, y_pred)
     return accuracy
 
 
@@ -193,7 +194,7 @@ def objectiveXgboost(trial):
     global TEST_SIZE
     global X
     global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE)
+    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     dtrain = xgb.DMatrix(train_x, label=train_y)
     dvalid = xgb.DMatrix(valid_x, label=valid_y)
 
@@ -232,7 +233,7 @@ def objectiveXgboost(trial):
     bst = xgb.train(param, dtrain)
     preds = bst.predict(dvalid)
     pred_labels = np.rint(preds)
-    accuracy = recall_score(valid_y, pred_labels)
+    accuracy = balanced_accuracy_score(valid_y, pred_labels)
     return accuracy
 
 
@@ -240,7 +241,7 @@ def objectiveLGBM(trial):
     global TEST_SIZE
     global X
     global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE)
+    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     dtrain = lgb.Dataset(train_x, label=train_y)
 
     param = {
@@ -260,7 +261,7 @@ def objectiveLGBM(trial):
     gbm = lgb.train(param, dtrain)
     preds = gbm.predict(valid_x)
     pred_labels = np.rint(preds)
-    accuracy = recall_score(valid_y, pred_labels)
+    accuracy = balanced_accuracy_score(valid_y, pred_labels)
     return accuracy
 
 
@@ -268,16 +269,16 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
     y_pred = None
     if algo_name == "lgbm":
         dtrain = lgb.Dataset(x_train, label=y_train)
-        gbm = lgb.train(params, dtrain)
-        preds = gbm.predict(x_test)
+        classifier_obj = lgb.train(params, dtrain)
+        preds = classifier_obj.predict(x_test)
         y_pred = np.rint(preds)
     elif "xgboost" in algo_name:
         dtrain = xgb.DMatrix(x_train, label=y_train)
         dvalid = xgb.DMatrix(x_test, label=y_test)
-        model = xgb.train(params, dtrain)
+        classifier_obj = xgb.train(params, dtrain)
 
         # Use accuracy for evaluation
-        preds = model.predict(dvalid)
+        preds = classifier_obj.predict(dvalid)
         y_pred = np.rint(preds)  # Round to 0 or 1
     elif algo_name == "RandomForest":
         classifier_obj = sklearn.ensemble.RandomForestClassifier(max_depth=params['max_depth'],
@@ -319,7 +320,7 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
         print("no algo with that name " + algo_name)
         return None
     class_report = classification_report(y_test, y_pred)
-    return class_report
+    return class_report, classifier_obj
 
 
 if __name__ == "__main__":
@@ -327,18 +328,13 @@ if __name__ == "__main__":
     data_encoded = data.copy()
     X_all = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     y_all = data_encoded['readmitted_less_than_30'].astype(bool)
-    X, x_test, Y, Y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE, stratify=y_all)
+    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE, stratify=y_all)
 
     functions = [
-        # [objectiveLGBM, 'lgbm'],
-        #[objectiveXgboost, 'xgboost'],
-                 #[objectiveRandomForest, 'RandomForest'],
-         #        [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
-                 [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
-           #      [objectiveGradientBoostingClassifier, 'GradientBoostingClassifier'],
-                 [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
-                 [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']
-        , [objectiveXGBoostPruning, 'XGBoostPruning']]
+        [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
+        [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
+        [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
+        [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']]
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     result_path = sys.argv[2]
@@ -348,11 +344,8 @@ if __name__ == "__main__":
     os.mkdir(result_path)
     n_trials = int(sys.argv[3])
     for objective, study_name in functions:
-        if study_name == "XGBoostPruning":
-            study = optuna.create_study(direction="minimize", study_name=study_name)
-        else:
-            study = optuna.create_study(direction="maximize", study_name=study_name)
-        study.optimize(objective, n_trials=n_trials, n_jobs=-1, show_progress_bar=True)
+        study = optuna.create_study(direction="maximize", study_name=study_name)
+        study.optimize(objective, n_trials=n_trials, n_jobs=4, show_progress_bar=True)
         os.mkdir(result_path + "/" + study_name)
 
         with open(result_path + "/" + study_name + "/results.txt", "w") as file:
@@ -368,28 +361,25 @@ if __name__ == "__main__":
             for key, value in trial.params.items():
                 print("    {}: {}".format(key, value))
                 file.write("    {}: {}\n".format(key, value))
-            test_results = get_test_results(study_name, trial.params, X, x_test, Y, Y_test)
+            test_results, classifier_obj = get_test_results(study_name, trial.params, X, x_test, Y, y_test)
             print("classification_report on test: ")
             print(str(test_results))
             file.write("accuracy on test:\n")
             file.write(str(test_results))
-            joblib.dump(study,result_path+"/study.pkl")
-            # plot_save_path = result_path + "/" + study_name + "/"
-            # fig = plot_optimization_history(study)
-            # fig.write_image(plot_save_path + "plot_optimization_history.png")
-            # matplotlib.pyplot.clf()
-            # Visualize the learning curves of the trials.
-            # fig = plot_intermediate_values(study)
-            # fig.write_image(plot_save_path + "plot_intermediate_values.png")
-            # # Visualize high-dimensional parameter relationships.
-            # fig = plot_parallel_coordinate(study)
-            # fig.write_image(plot_save_path + "plot_parallel_coordinate.png")
-            # Visualize hyperparameter relationships.
-            # fig = plot_contour(study)
-            # fig.write_image(plot_save_path + "plot_contour.png")
-            # # Visualize individual hyperparameters.
-            # fig = plot_slice(study)
-            # fig.write_image(plot_save_path + "plot_slice.png")
-            # # Visualize parameter importances.
-            # fig = plot_param_importances(study)
-            # fig.write_image(plot_save_path + "plot_param_importances.png")
+            joblib.dump(study, result_path + "/study.pkl")
+            plot_save_path = result_path + "/" + study_name + "/"
+            fig = plot_optimization_history(study)
+            fig.write_image(plot_save_path + "plot_optimization_history.png")
+            y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
+            fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+            roc_auc = auc(fpr, tpr)
+            plt.clf()
+            plt.plot(fpr, tpr, label=f'{study_name} (area = {roc_auc:.2f})')
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlim([0.0, 1.0])
+            plt.ylim([0.0, 1.05])
+            plt.xlabel('False Positive Rate')
+            plt.ylabel('True Positive Rate')
+            plt.title('Receiver Operating Characteristic (ROC)')
+            plt.legend(loc="lower right")
+            plt.savefig(plot_save_path + "/roc_curve.png", dpi=300)

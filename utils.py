@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import copy
-
+from sklearn.impute import SimpleImputer
 gender_categories = {
     'Female': 0,
     'Male': 1
@@ -67,9 +67,11 @@ def groupByAttrIndexToDic(data, index_of_attr):
         results[index_value].append(row)
     return results
 
+
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr','race','gender', 'age', 'admission_type_id','time_in_hospital','num_procedures',
+        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
+                      'num_procedures',
                       'admission_source_id', 'diabetesMed',
                       'payer_code', 'number_diagnoses', 'readmitted', 'change',
                       'num_medications', 'discharge_disposition_id']
@@ -78,74 +80,63 @@ def createLabels(path_to_data, col_filter=None):
     data = pd.read_csv(path_to_data)
     ## Filtering and classifying
     data = prepareData(data, col_filter)
-    data['age_group'] = data['age_group'].astype(int)
-    data['admission_type_id'] = data['admission_type_id'].astype(int)
-    data['admission_source_id'] = data['admission_source_id'].astype(int)
-    data['diabetesMed'] = data['diabetesMed'].astype(int)
-    data['payer_code'] = data['payer_code'].astype(int)
-    data['number_diagnoses'] = data['number_diagnoses'].astype(int)
-    data['change'] = data['change'].astype(int)
-    data['num_medications'] = data['num_medications'].astype(int)
-    data['discharge_disposition_id'] = data['discharge_disposition_id'].astype(int)
-    data['time_in_hospital'] = data['time_in_hospital'].astype(int)
-    data['race'] = data['race'].astype(int)
-    data['gender'] = data['gender'].astype(int)
-    data['num_procedures'] = data['num_procedures'].astype(int)
+    # data['age_group'] = data['age_group'].astype(int)
+    # data['admission_type_id'] = data['admission_type_id'].astype(int)
+    # data['admission_source_id'] = data['admission_source_id'].astype(int)
+    # data['diabetesMed'] = data['diabetesMed'].astype(int)
+    # data['payer_code'] = data['payer_code'].astype(int)
+    # data['number_diagnoses'] = data['number_diagnoses'].astype(int)
+    # data['change'] = data['change'].astype(int)
+    # data['num_medications'] = data['num_medications'].astype(int)
+    # data['discharge_disposition_id'] = data['discharge_disposition_id'].astype(int)
+    # data['time_in_hospital'] = data['time_in_hospital'].astype(int)
+    # data['race'] = data['race'].astype(int)
+    # data['gender'] = data['gender'].astype(int)
+    # data['num_procedures'] = data['num_procedures'].astype(int)
     return data
+
+
 def prepareData(data, col_filter):
     filtered_data = data[col_filter]
     filtered_data = filtered_data.replace('?', np.nan)
-    filtered_data = filtered_data.dropna()
     # Age groups:
     for age_group, replacement in age_groups.items():
         filtered_data.loc[filtered_data['age'] == age_group, 'age'] = replacement
 
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
-    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': True, 'No': False})
-    filtered_data['change'] = filtered_data['change'].map({'Ch': True, 'No': False})
+    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
+    filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
+    filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1,'>30':0})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
-#    filtered_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\filtered_data.csv')
+    imp = SimpleImputer(missing_values=np.nan, strategy='median')
+    imp.fit(filtered_data)
+    filtered_data_imputed = imp.transform(filtered_data)
+    filtered_data = pd.DataFrame(filtered_data_imputed,columns=filtered_data.columns)
     Y = {}
-    for patient_nbr,group in filtered_data.groupby('patient_nbr'):
-        if len(group) ==1:
-            continue
-        Y[patient_nbr] ={}
+    for patient_nbr, group in filtered_data.groupby('patient_nbr'):
+        # if len(group) ==1:
+        #     continue
+        Y[patient_nbr] = {}
         indx2 = group.index
         for i, row2 in enumerate(indx2):
             Y[patient_nbr][row2] = copy.deepcopy(group.loc[row2])
             Y[patient_nbr][row2]['readmitted_less_than_30'] = 0
             if i + 1 < len(indx2):
                 Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
-                                                              list(indx2)[i + 1], 'readmitted'] == '<30' else 0
-    # for indx1, row in filtered_data.iterrows():
-    #     patient_nbr = row['patient_nbr']
-    #     indx2 = filtered_data[filtered_data['patient_nbr'] == patient_nbr].index
-    #     # if len(indx2) == 1:
-    #     #     continue
-    #     if indx1 not in Y:
-    #         for i, row2 in enumerate(indx2):
-    #             Y[row2] = copy.deepcopy(filtered_data.loc[row2])
-    #             Y[row2]['readmitted_less_than_30'] = 0
-    #             if i + 1 < len(indx2):
-    #                 Y[row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
-    #                                                               list(indx2)[i + 1], 'readmitted'] == '<30' else 0
-    #                 continue
-
+                                                                           list(indx2)[
+                                                                               i + 1], 'readmitted'] == 1 else 0
     collapsed_data_rows = []
     for patient_nbr, values in Y.items():
-        for row_num,row in values.items():
+        for row_num, row in values.items():
             collapsed_data_rows.append(row)
     # Create the collapsed_data DataFrame using concat
     collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
 
     collapsed_data.head()
-    collapsed_data.to_csv('dataCleaner.csv')
     return collapsed_data
-
-
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):
