@@ -346,19 +346,21 @@ if __name__ == "__main__":
     result_path = os.path.join(result_path, datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
     n_trials = int(sys.argv[3])
-    metrics = [average_precision_score, balanced_accuracy_score, auc, f1_score, fbeta_score, zero_one_loss]
-    metrics_params = [{'average': 'macro'}, {}, {}, {'average': 'macro'}, {'average': 'macro', 'beta': 2.0},
+    metrics = [balanced_accuracy_score, auc, f1_score, fbeta_score, zero_one_loss]
+    metrics_params = [{}, {}, {'average': 'micro'}, {'average': 'micro', 'beta': 1.5},
                       {'normalize': True}]
     for i in range(len(metrics)):
         METRIC = metrics[i]
         METRIC_PARAMS = metrics_params[i]
+        metric_result_path = result_path+'/'+METRIC.__name__
+        os.mkdir(metric_result_path)
         for objective, study_name in functions:
             print("for the metric {}".format(METRIC.__name__))
             study = optuna.create_study(direction="maximize", study_name=study_name)
             study.optimize(objective, n_trials=n_trials, n_jobs=4, show_progress_bar=True)
-            os.mkdir(result_path + "/" + study_name)
+            os.mkdir(metric_result_path + "/" + study_name)
 
-            with open(result_path + "/" + study_name + "/results.txt", "w") as file:
+            with open(metric_result_path + "/" + study_name + "/results.txt", "w") as file:
                 print("Number of finished trials for {}: {} for metric {}".format(study_name, len(study.trials),METRIC.__name__))
                 file.write("Number of finished trials: {} for metric {}\n".format(len(study.trials),METRIC.__name__))
                 print("Best trial:")
@@ -376,8 +378,8 @@ if __name__ == "__main__":
                 print(str(test_results))
                 file.write("accuracy on test:\n")
                 file.write(str(test_results))
-                joblib.dump(study, result_path + "/study.pkl")
-                plot_save_path = result_path + "/" + study_name + "/"
+                plot_save_path = metric_result_path + "/" + study_name + "/"
+                joblib.dump(study, metric_result_path + "/"+study_name + "/study.pkl")
                 fig = plot_optimization_history(study)
                 fig.write_image(plot_save_path + "plot_optimization_history.png")
                 y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
