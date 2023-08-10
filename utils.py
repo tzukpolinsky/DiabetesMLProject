@@ -70,11 +70,9 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
-                      'num_procedures',
-                      'admission_source_id', 'diabetesMed',
-                      'payer_code', 'number_diagnoses', 'readmitted', 'change',
-                      'num_medications', 'discharge_disposition_id']
+        col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
+                      'payer_code', 'readmitted', 'change',
+                      'num_medications']
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
     data = pd.read_csv(path_to_data)
@@ -108,8 +106,8 @@ def prepareData(data, col_filter):
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
     filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1,'>30':0})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
-    filtered_data['race'] = filtered_data['race'].map(race_categories)
-    filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
+    #filtered_data['race'] = filtered_data['race'].map(race_categories)
+    #filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
     imp = SimpleImputer(missing_values=np.nan, strategy='median')
     imp.fit(filtered_data)
@@ -128,6 +126,7 @@ def prepareData(data, col_filter):
                 Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
                                                                            list(indx2)[
                                                                                i + 1], 'readmitted'] == 1 else 0
+
     collapsed_data_rows = []
     for patient_nbr, values in Y.items():
         for row_num, row in values.items():
