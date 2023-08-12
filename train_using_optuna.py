@@ -23,17 +23,21 @@ from matplotlib import pyplot as plt
 from optuna.visualization import plot_optimization_history, plot_intermediate_values, plot_param_importances, \
     plot_slice, plot_contour, plot_parallel_coordinate
 from sklearn.model_selection import train_test_split
+
 from utils import createLabels
 import xgboost as xgb
 from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
-    average_precision_score, fbeta_score, zero_one_loss
+    average_precision_score, fbeta_score, zero_one_loss, recall_score
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
 Y = []
 TEST_SIZE = 0.25
-METRIC = None
-METRIC_PARAMS = None
+def getMetrics(y_test, y_pred):
+    avg_precision_score = average_precision_score(y_test, y_pred)
+    re_score = recall_score(y_test, y_pred)
+    loss = zero_one_loss(y_test, y_pred, normalize=True)
+    return avg_precision_score, loss, re_score
 
 
 def objectiveSVC(trial):
@@ -46,8 +50,7 @@ def objectiveSVC(trial):
     classifier_obj = sklearn.svm.SVC(C=svc_c, gamma="auto")
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
-    accuracy = METRIC(y_test, y_pred)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveGradientBoostingClassifier(trail):
@@ -63,9 +66,7 @@ def objectiveGradientBoostingClassifier(trail):
                                                 max_depth=params['max_depth'])
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
-
-    accuracy = METRIC(y_test, y_pred)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveXGBoostPruning(trial):
@@ -107,16 +108,15 @@ def objectiveEasyEnsembleClassifier(trail):
     global Y
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
     }
     classifier_obj = EasyEnsembleClassifier(n_estimators=params['n_estimators'],
                                             replacement=True, sampling_strategy=params['sampling_strategy'])
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveRUSBoostClassifier(trail):
@@ -125,8 +125,8 @@ def objectiveRUSBoostClassifier(trail):
     global Y
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all']),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'sampling_strategy':  trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False),
         'learning_rate': trail.suggest_float("learning_rate", 1e-8, 1.0, log=True)
     }
     classifier_obj = RUSBoostClassifier(n_estimators=params['n_estimators'], learning_rate=params['learning_rate'],
@@ -134,8 +134,7 @@ def objectiveRUSBoostClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveBalancedRandomForestClassifier(trail):
@@ -144,17 +143,16 @@ def objectiveBalancedRandomForestClassifier(trail):
     global Y
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'max_depth': trail.suggest_int('max_depth', 2, 30),
-        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'max_depth': trail.suggest_int('max_depth', 2, 20),
+        'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
     }
     classifier_obj = BalancedRandomForestClassifier(n_estimators=params['n_estimators'], max_depth=params['max_depth'],
                                                     replacement=True, sampling_strategy=params['sampling_strategy'])
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveBalancedBaggingClassifier(trail):
@@ -171,8 +169,8 @@ def objectiveBalancedBaggingClassifier(trail):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = METRIC(y_test, y_pred, **METRIC_PARAMS)
-    return accuracy
+    # return getMetrics(y_test, y_pred)
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveRandomForest(trial):
@@ -189,8 +187,7 @@ def objectiveRandomForest(trial):
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
-    accuracy = METRIC(y_test, y_pred)
-    return accuracy
+    return getMetrics(y_test, y_pred)
 
 
 def objectiveXgboost(trial):
@@ -204,13 +201,9 @@ def objectiveXgboost(trial):
     param = {
         "verbosity": 0,
         "objective": "binary:logistic",
-        # use exact for small dataset.
-        "tree_method": "gpu_hist",
-        # defines booster, gblinear for linear functions.
+        "eval_metric": "auc",
         "booster": trial.suggest_categorical("booster", ["gbtree", "gblinear", "dart"]),
-        # L2 regularization weight.
         "lambda": trial.suggest_float("lambda", 1e-8, 1.0, log=True),
-        # L1 regularization weight.
         "alpha": trial.suggest_float("alpha", 1e-8, 1.0, log=True),
         # sampling ratio for training data.
         "subsample": trial.suggest_float("subsample", 0.2, 1.0),
@@ -218,13 +211,11 @@ def objectiveXgboost(trial):
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.0),
     }
 
-    if param["booster"] in ["gbtree", "dart"]:
-        # maximum depth of the tree, signifies complexity of the tree.
-        param["max_depth"] = trial.suggest_int("max_depth", 3, 20, step=2)
+    if param["booster"] == "gbtree" or param["booster"] == "dart":
+        param["max_depth"] = trial.suggest_int("max_depth", 1, 9)
         # minimum child weight, larger the term more conservative the tree.
         param["min_child_weight"] = trial.suggest_int("min_child_weight", 2, 10)
         param["eta"] = trial.suggest_float("eta", 1e-8, 1.0, log=True)
-        # defines how selective algorithm is.
         param["gamma"] = trial.suggest_float("gamma", 1e-8, 1.0, log=True)
         param["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
 
@@ -233,11 +224,22 @@ def objectiveXgboost(trial):
         param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
         param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 1.0, log=True)
         param["skip_drop"] = trial.suggest_float("skip_drop", 1e-8, 1.0, log=True)
-    bst = xgb.train(param, dtrain)
-    preds = bst.predict(dvalid)
-    pred_labels = np.rint(preds)
-    accuracy = METRIC(valid_y, pred_labels)
-    return accuracy
+    xgb_cv_results = xgb.cv(
+        params=param,
+        dtrain=dtrain,
+        num_boost_round=10000,
+        nfold=5,
+        stratified=True,
+        early_stopping_rounds=100,
+        seed=42,
+        verbose_eval=False,
+    )
+
+    # Set n_estimators as a trial attribute; Accessible via study.trials_dataframe().
+    trial.set_user_attr("n_estimators", len(xgb_cv_results))
+    # Extract the best score.
+    best_score = xgb_cv_results["test-auc-mean"].values[-1]
+    return best_score
 
 
 def objectiveLGBM(trial):
@@ -263,9 +265,8 @@ def objectiveLGBM(trial):
 
     gbm = lgb.train(param, dtrain)
     preds = gbm.predict(valid_x)
-    pred_labels = np.rint(preds)
-    accuracy = METRIC(valid_y, pred_labels)
-    return accuracy
+    y_pred = np.rint(preds)
+    return getMetrics(y_test, y_pred)
 
 
 def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
@@ -326,6 +327,42 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
     return class_report, classifier_obj
 
 
+def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, save_path):
+    with open(save_path + "/" + trail_name + "_results.txt", "w") as file:
+        print("Number of finished trials for {}: {}".format(study_name, amount_of_trails))
+        file.write("Number of finished trials: {} \n".format(amount_of_trails))
+        print("{} Best trial:".format(trail_name))
+        file.write("{} Best trial:\n".format(trail_name))
+        print("Value: {}".format(trail.values))
+        file.write("Value: {}\n".format(trail.values))
+        print("Params: ")
+        file.write("Params: \n")
+        for key, value in trail.params.items():
+            print("    {}: {}".format(key, value))
+            file.write("    {}: {}\n".format(key, value))
+        test_results, classifier_obj = get_test_results(study_name, trail.params, X, x_test, Y, y_test)
+        print("classification_report on test: ")
+        print(str(test_results))
+        file.write("accuracy on test:\n")
+        file.write(str(test_results))
+        y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+        roc_auc = auc(fpr, tpr)
+        plt.clf()
+        plt.plot(fpr, tpr, label=f'{study_name} (area = {roc_auc:.2f})')
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC)')
+        plt.legend(loc="lower right")
+        plt.savefig(save_path + "/" + trail_name + "_roc_curve.png", dpi=300)
+
+        fig = plot_optimization_history(study, target=lambda t: t.values[trail_index])
+        fig.write_image(save_path + "plot_optimization_history.png")
+
+
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
     data_encoded = data.copy()
@@ -334,7 +371,8 @@ if __name__ == "__main__":
     X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE, stratify=y_all)
 
     functions = [
-        [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
+        [objectiveXgboost, "xgboost"],
+        [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
         [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']]
@@ -346,52 +384,18 @@ if __name__ == "__main__":
     result_path = os.path.join(result_path, datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
     n_trials = int(sys.argv[3])
-    metrics = [balanced_accuracy_score, auc, f1_score, fbeta_score, zero_one_loss]
-    metrics_params = [{}, {}, {'average': 'micro'}, {'average': 'micro', 'beta': 1.5},
-                      {'normalize': True}]
-    for i in range(len(metrics)):
-        METRIC = metrics[i]
-        METRIC_PARAMS = metrics_params[i]
-        metric_result_path = result_path+'/'+METRIC.__name__
-        os.mkdir(metric_result_path)
-        for objective, study_name in functions:
-            print("for the metric {}".format(METRIC.__name__))
-            study = optuna.create_study(direction="maximize", study_name=study_name)
-            study.optimize(objective, n_trials=n_trials, n_jobs=4, show_progress_bar=True)
-            os.mkdir(metric_result_path + "/" + study_name)
+    for objective, study_name in functions:
+        study = optuna.create_study(
+            directions=[optuna.study.StudyDirection.MAXIMIZE, optuna.study.StudyDirection.MINIMIZE,
+                        optuna.study.StudyDirection.MAXIMIZE], study_name=study_name)
+        study.optimize(objective, n_trials=n_trials, n_jobs=1, show_progress_bar=True)
+        save_path = result_path + "/" + study_name
+        os.mkdir(save_path)
+        highest_recall_trail = max(study.best_trials, key=lambda t: t.values[0])
+        lowest_los_trail = min(study.best_trials, key=lambda t: t.values[1])
+        highest_avg_precision_trail = max(study.best_trials, key=lambda t: t.values[2])
 
-            with open(metric_result_path + "/" + study_name + "/results.txt", "w") as file:
-                print("Number of finished trials for {}: {} for metric {}".format(study_name, len(study.trials),METRIC.__name__))
-                file.write("Number of finished trials: {} for metric {}\n".format(len(study.trials),METRIC.__name__))
-                print("Best trial:")
-                file.write("Best trial:\n")
-                trial = study.best_trial
-                print("  Value: {}".format(trial.value))
-                file.write("  Value: {}\n".format(trial.value))
-                print("  Params: ")
-                file.write("  Params: \n")
-                for key, value in trial.params.items():
-                    print("    {}: {}".format(key, value))
-                    file.write("    {}: {}\n".format(key, value))
-                test_results, classifier_obj = get_test_results(study_name, trial.params, X, x_test, Y, y_test)
-                print("classification_report on test: ")
-                print(str(test_results))
-                file.write("accuracy on test:\n")
-                file.write(str(test_results))
-                plot_save_path = metric_result_path + "/" + study_name + "/"
-                joblib.dump(study, metric_result_path + "/"+study_name + "/study.pkl")
-                fig = plot_optimization_history(study)
-                fig.write_image(plot_save_path + "plot_optimization_history.png")
-                y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
-                fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
-                roc_auc = auc(fpr, tpr)
-                plt.clf()
-                plt.plot(fpr, tpr, label=f'{study_name} (area = {roc_auc:.2f})')
-                plt.plot([0, 1], [0, 1], 'k--')
-                plt.xlim([0.0, 1.0])
-                plt.ylim([0.0, 1.05])
-                plt.xlabel('False Positive Rate')
-                plt.ylabel('True Positive Rate')
-                plt.title('Receiver Operating Characteristic (ROC)')
-                plt.legend(loc="lower right")
-                plt.savefig(plot_save_path + "/roc_curve.png", dpi=300)
+        save_results(highest_recall_trail, "highest recall", study_name, n_trials, 0, save_path)
+        save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
+        save_results(highest_avg_precision_trail, "highest average precision", study_name, n_trials, 2, save_path)
+        joblib.dump(study, save_path + "/study.pkl")
