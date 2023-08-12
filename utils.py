@@ -71,7 +71,7 @@ def groupByAttrIndexToDic(data, index_of_attr):
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
         col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
-                      'payer_code', 'readmitted', 'change',
+                      'payer_code', 'readmitted', 'change', 'race','gender',
                       'num_medications']
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
@@ -106,8 +106,8 @@ def prepareData(data, col_filter):
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
     filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1,'>30':0})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
-    #filtered_data['race'] = filtered_data['race'].map(race_categories)
-    #filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
+    filtered_data['race'] = filtered_data['race'].map(race_categories)
+    filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
     imp = SimpleImputer(missing_values=np.nan, strategy='median')
     imp.fit(filtered_data)
