@@ -136,7 +136,10 @@ def prepareData(data, col_filter):
     collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
 
     collapsed_data.head()
+    collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
     return collapsed_data
+
+
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):
