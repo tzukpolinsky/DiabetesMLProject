@@ -27,17 +27,24 @@ from sklearn.model_selection import train_test_split
 from utils import createLabels
 import xgboost as xgb
 from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
-    average_precision_score, fbeta_score, zero_one_loss, recall_score
+    average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
 Y = []
 TEST_SIZE = 0.25
+
+
 def getMetrics(y_test, y_pred):
-    avg_precision_score = average_precision_score(y_test, y_pred)
-    re_score = recall_score(y_test, y_pred)
-    loss = zero_one_loss(y_test, y_pred, normalize=True)
-    return avg_precision_score, loss, re_score
+    # avg_precision_score = average_precision_score(y_test, y_pred)
+    # re_score = recall_score(y_test, y_pred)
+    # loss = zero_one_loss(y_test, y_pred, normalize=True)
+    # return avg_precision_score, loss, re_score
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+    specificity = tn / (tn + fp)
+    fpr, tpr, _ = roc_curve(y_test, y_pred)
+    roc_auc = auc(fpr, tpr)
+    return specificity, roc_auc
 
 
 def objectiveSVC(trial):
@@ -126,7 +133,7 @@ def objectiveRUSBoostClassifier(trail):
     x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
-        'sampling_strategy':  trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False),
+        'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False),
         'learning_rate': trail.suggest_float("learning_rate", 1e-8, 1.0, log=True)
     }
     classifier_obj = RUSBoostClassifier(n_estimators=params['n_estimators'], learning_rate=params['learning_rate'],
@@ -386,16 +393,16 @@ if __name__ == "__main__":
     n_trials = int(sys.argv[3])
     for objective, study_name in functions:
         study = optuna.create_study(
-            directions=[optuna.study.StudyDirection.MAXIMIZE, optuna.study.StudyDirection.MINIMIZE,
-                        optuna.study.StudyDirection.MAXIMIZE], study_name=study_name)
+            directions=[optuna.study.StudyDirection.MAXIMIZE, optuna.study.StudyDirection.MAXIMIZE],
+            study_name=study_name)
         study.optimize(objective, n_trials=n_trials, n_jobs=1, show_progress_bar=True)
         save_path = result_path + "/" + study_name
         os.mkdir(save_path)
-        highest_recall_trail = max(study.best_trials, key=lambda t: t.values[0])
-        lowest_los_trail = min(study.best_trials, key=lambda t: t.values[1])
-        highest_avg_precision_trail = max(study.best_trials, key=lambda t: t.values[2])
+        highest_specificity_trail = max(study.best_trials, key=lambda t: t.values[0])
+        # lowest_los_trail = min(study.best_trials, key=lambda t: t.values[1])
+        highest_roc_auc_trail = max(study.best_trials, key=lambda t: t.values[1])
 
-        save_results(highest_recall_trail, "highest recall", study_name, n_trials, 0, save_path)
-        save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
-        save_results(highest_avg_precision_trail, "highest average precision", study_name, n_trials, 2, save_path)
+        save_results(highest_specificity_trail, "highest specificity", study_name, n_trials, 0, save_path)
+        # save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
+        save_results(highest_roc_auc_trail, "highest roc_auc", study_name, n_trials, 2, save_path)
         joblib.dump(study, save_path + "/study.pkl")
