@@ -32,7 +32,12 @@ from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
 Y = []
-TEST_SIZE = 0.25
+TEST_SIZE = 0.75
+TEST_SIZE_TRAIN = 0.5
+
+def get_train_and_test():
+    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE_TRAIN)
+    return x_train, x_test, y_train, y_test
 
 
 def getMetrics(y_test, y_pred):
@@ -51,7 +56,7 @@ def objectiveSVC(trial):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
 
     svc_c = trial.suggest_float("svc_c", 1e-10, 1e10, log=True)
     classifier_obj = sklearn.svm.SVC(C=svc_c, gamma="auto")
@@ -64,7 +69,7 @@ def objectiveGradientBoostingClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 50))),
         'max_depth': trail.suggest_int('max_depth', 2, 30),
@@ -75,47 +80,13 @@ def objectiveGradientBoostingClassifier(trail):
     y_pred = classifier_obj.predict(x_test)
     return getMetrics(y_test, y_pred)
 
-
-def objectiveXGBoostPruning(trial):
-    global TEST_SIZE
-    global X
-    global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
-    dtrain = xgb.DMatrix(train_x, label=train_y)
-    param = {
-        "verbosity": 0,
-        "objective": "binary:logistic",
-        "eval_metric": "error",
-        "booster": trial.suggest_categorical("booster", ["gbtree", "gblinear", "dart"]),
-        "lambda": trial.suggest_float("lambda", 1e-8, 1.0, log=True),
-        "alpha": trial.suggest_float("alpha", 1e-8, 1.0, log=True),
-    }
-
-    if param["booster"] == "gbtree" or param["booster"] == "dart":
-        param["max_depth"] = trial.suggest_int("max_depth", 1, 9)
-        param["eta"] = trial.suggest_float("eta", 1e-8, 1.0, log=True)
-        param["gamma"] = trial.suggest_float("gamma", 1e-8, 1.0, log=True)
-        param["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
-    if param["booster"] == "dart":
-        param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
-        param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
-        param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 1.0, log=True)
-        param["skip_drop"] = trial.suggest_float("skip_drop", 1e-8, 1.0, log=True)
-
-    pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "valid-error")
-    history = xgb.cv(param, dtrain, num_boost_round=100, callbacks=[pruning_callback])
-
-    mean_auc = history["valid-error-mean"].values[-1]
-    return mean_auc
-
-
 def objectiveEasyEnsembleClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
     }
     classifier_obj = EasyEnsembleClassifier(n_estimators=params['n_estimators'],
@@ -130,9 +101,9 @@ def objectiveRUSBoostClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False),
         'learning_rate': trail.suggest_float("learning_rate", 1e-8, 1.0, log=True)
     }
@@ -148,9 +119,9 @@ def objectiveBalancedRandomForestClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'max_depth': trail.suggest_int('max_depth', 2, 20),
         'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
     }
@@ -166,7 +137,7 @@ def objectiveBalancedBaggingClassifier(trail):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
@@ -184,7 +155,7 @@ def objectiveRandomForest(trial):
     global TEST_SIZE
     global X
     global Y
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
         'n_estimators': trial.suggest_categorical('n_estimators', list(range(50, 400, 10))),
         'max_depth': trial.suggest_int('max_depth', 2, 30),
@@ -201,16 +172,20 @@ def objectiveXgboost(trial):
     global TEST_SIZE
     global X
     global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
-    dtrain = xgb.DMatrix(train_x, label=train_y)
-    dvalid = xgb.DMatrix(valid_x, label=valid_y)
+    x_train, x_test, y_train, y_test = get_train_and_test()
+    dtrain = xgb.DMatrix(x_train, label=y_train)
+    dvalid = xgb.DMatrix(x_test, label=y_test)
 
     param = {
         "verbosity": 0,
         "objective": "binary:logistic",
-        "eval_metric": "auc",
+        # use exact for small dataset.
+        "tree_method": "gpu_hist",
+        # defines booster, gblinear for linear functions.
         "booster": trial.suggest_categorical("booster", ["gbtree", "gblinear", "dart"]),
+        # L2 regularization weight.
         "lambda": trial.suggest_float("lambda", 1e-8, 1.0, log=True),
+        # L1 regularization weight.
         "alpha": trial.suggest_float("alpha", 1e-8, 1.0, log=True),
         # sampling ratio for training data.
         "subsample": trial.suggest_float("subsample", 0.2, 1.0),
@@ -218,11 +193,13 @@ def objectiveXgboost(trial):
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.0),
     }
 
-    if param["booster"] == "gbtree" or param["booster"] == "dart":
-        param["max_depth"] = trial.suggest_int("max_depth", 1, 9)
+    if param["booster"] in ["gbtree", "dart"]:
+        # maximum depth of the tree, signifies complexity of the tree.
+        param["max_depth"] = trial.suggest_int("max_depth", 3, 20, step=2)
         # minimum child weight, larger the term more conservative the tree.
         param["min_child_weight"] = trial.suggest_int("min_child_weight", 2, 10)
         param["eta"] = trial.suggest_float("eta", 1e-8, 1.0, log=True)
+        # defines how selective algorithm is.
         param["gamma"] = trial.suggest_float("gamma", 1e-8, 1.0, log=True)
         param["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
 
@@ -231,29 +208,17 @@ def objectiveXgboost(trial):
         param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
         param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 1.0, log=True)
         param["skip_drop"] = trial.suggest_float("skip_drop", 1e-8, 1.0, log=True)
-    xgb_cv_results = xgb.cv(
-        params=param,
-        dtrain=dtrain,
-        num_boost_round=10000,
-        nfold=5,
-        stratified=True,
-        early_stopping_rounds=100,
-        seed=42,
-        verbose_eval=False,
-    )
-
-    # Set n_estimators as a trial attribute; Accessible via study.trials_dataframe().
-    trial.set_user_attr("n_estimators", len(xgb_cv_results))
-    # Extract the best score.
-    best_score = xgb_cv_results["test-auc-mean"].values[-1]
-    return best_score
+    bst = xgb.train(param, dtrain)
+    preds = bst.predict(dvalid)
+    pred_labels = np.rint(preds)
+    return getMetrics(y_test, pred_labels)
 
 
 def objectiveLGBM(trial):
     global TEST_SIZE
     global X
     global Y
-    train_x, valid_x, train_y, valid_y = train_test_split(X, Y, test_size=TEST_SIZE, stratify=Y)
+    train_x, valid_x, train_y, valid_y = get_train_and_test()
     dtrain = lgb.Dataset(train_x, label=train_y)
 
     param = {
@@ -352,7 +317,11 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
         print(str(test_results))
         file.write("accuracy on test:\n")
         file.write(str(test_results))
-        y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
+        if "xgboost" in study_name:
+            dvalid = xgb.DMatrix(x_test, label=y_test)
+            y_pred_prob =classifier_obj.predict(dvalid,output_margin=False)
+        else:
+            y_pred_prob = classifier_obj.predict_proba(x_test)[:, 1]
         fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
         roc_auc = auc(fpr, tpr)
         plt.clf()
@@ -373,10 +342,9 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
     data_encoded = data.copy()
-    X_all = data_encoded.drop(['readmitted', 'readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
+    X_all = data_encoded.drop(['readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
     y_all = data_encoded['readmitted_less_than_30'].astype(bool)
-    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE, stratify=y_all)
-
+    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE)
     functions = [
         [objectiveXgboost, "xgboost"],
         [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"],
@@ -384,7 +352,7 @@ if __name__ == "__main__":
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
         [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']]
 
-    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    optuna.logging.set_verbosity(optuna.logging.WARNING )
     result_path = sys.argv[2]
     if not os.path.isdir(result_path):
         os.mkdir(result_path)
@@ -404,5 +372,5 @@ if __name__ == "__main__":
 
         save_results(highest_specificity_trail, "highest specificity", study_name, n_trials, 0, save_path)
         # save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
-        save_results(highest_roc_auc_trail, "highest roc_auc", study_name, n_trials, 2, save_path)
+        save_results(highest_roc_auc_trail, "highest roc_auc", study_name, n_trials, 1, save_path)
         joblib.dump(study, save_path + "/study.pkl")

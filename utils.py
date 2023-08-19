@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import copy
 from sklearn.impute import SimpleImputer
+
 gender_categories = {
     'Female': 0,
     'Male': 1
@@ -71,7 +72,7 @@ def groupByAttrIndexToDic(data, index_of_attr):
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
         col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
-                      'payer_code', 'readmitted', 'change', 'race','gender',
+                      'payer_code', 'readmitted', 'change', 'race', 'gender',
                       'num_medications']
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
@@ -104,7 +105,7 @@ def prepareData(data, col_filter):
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
     filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
-    filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1,'>30':0})
+    filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
@@ -112,7 +113,7 @@ def prepareData(data, col_filter):
     imp = SimpleImputer(missing_values=np.nan, strategy='median')
     imp.fit(filtered_data)
     filtered_data_imputed = imp.transform(filtered_data)
-    filtered_data = pd.DataFrame(filtered_data_imputed,columns=filtered_data.columns)
+    filtered_data = pd.DataFrame(filtered_data_imputed, columns=filtered_data.columns)
     Y = {}
     for patient_nbr, group in filtered_data.groupby('patient_nbr'):
         # if len(group) ==1:
@@ -135,10 +136,8 @@ def prepareData(data, col_filter):
     collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
 
     collapsed_data.head()
-    collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
+    # collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
     return collapsed_data
-
-
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):
