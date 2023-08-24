@@ -71,9 +71,12 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
-                      'payer_code', 'readmitted', 'change', 'race', 'gender',
-                      'num_medications']
+        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
+                      'num_procedures',
+                      'admission_source_id', 'diabetesMed',
+                      'payer_code', 'number_diagnoses', 'readmitted', 'change',
+                      'num_medications', 'discharge_disposition_id']
+
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
     data = pd.read_csv(path_to_data)
@@ -110,34 +113,35 @@ def prepareData(data, col_filter):
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
-    imp = SimpleImputer(missing_values=np.nan, strategy='median')
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
     imp.fit(filtered_data)
     filtered_data_imputed = imp.transform(filtered_data)
     filtered_data = pd.DataFrame(filtered_data_imputed, columns=filtered_data.columns)
-    Y = {}
-    for patient_nbr, group in filtered_data.groupby('patient_nbr'):
-        # if len(group) ==1:
-        #     continue
-        Y[patient_nbr] = {}
-        indx2 = group.index
-        for i, row2 in enumerate(indx2):
-            Y[patient_nbr][row2] = copy.deepcopy(group.loc[row2])
-            Y[patient_nbr][row2]['readmitted_less_than_30'] = 0
-            if i + 1 < len(indx2):
-                Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
-                                                                           list(indx2)[
-                                                                               i + 1], 'readmitted'] == 1 else 0
-
-    collapsed_data_rows = []
-    for patient_nbr, values in Y.items():
-        for row_num, row in values.items():
-            collapsed_data_rows.append(row)
-    # Create the collapsed_data DataFrame using concat
-    collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
-
-    collapsed_data.head()
-    # collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
-    return collapsed_data
+    return filtered_data
+    # Y = {}
+    # for patient_nbr, group in filtered_data.groupby('patient_nbr'):
+    #     # if len(group) ==1:
+    #     #     continue
+    #     Y[patient_nbr] = {}
+    #     indx2 = group.index
+    #     for i, row2 in enumerate(indx2):
+    #         Y[patient_nbr][row2] = copy.deepcopy(group.loc[row2])
+    #         Y[patient_nbr][row2]['readmitted_less_than_30'] = 0
+    #         if i + 1 < len(indx2):
+    #             Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
+    #                                                                        list(indx2)[
+    #                                                                            i + 1], 'readmitted'] == 1 else 0
+    #
+    # collapsed_data_rows = []
+    # for patient_nbr, values in Y.items():
+    #     for row_num, row in values.items():
+    #         collapsed_data_rows.append(row)
+    # # Create the collapsed_data DataFrame using concat
+    # collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
+    #
+    # collapsed_data.head()
+    # # collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
+    # return collapsed_data
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):

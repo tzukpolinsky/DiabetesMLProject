@@ -6,6 +6,7 @@ We optimize both the choice of booster model and their hyperparameters.
 
 """
 import datetime
+import math
 import os.path
 import sys
 import joblib
@@ -19,7 +20,7 @@ import sklearn.datasets
 import sklearn.metrics
 from imblearn.ensemble import BalancedBaggingClassifier, BalancedRandomForestClassifier, RUSBoostClassifier, \
     EasyEnsembleClassifier
-from imblearn.over_sampling import SMOTE,ADASYN
+from imblearn.over_sampling import SMOTE, ADASYN
 from imblearn.combine import SMOTETomek
 
 from matplotlib import pyplot as plt
@@ -35,8 +36,8 @@ from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 
 X = []
 Y = []
-TEST_SIZE = 0.25
-TEST_SIZE_TRAIN = 0.25
+TEST_SIZE = 0.1
+TEST_SIZE_TRAIN = 0.75
 
 
 def get_train_and_test():
@@ -50,9 +51,11 @@ def getMetrics(y_tst, y_pred):
     # loss = zero_one_loss(y_test, y_pred, normalize=True)
     # return avg_precision_score, loss, re_score
     tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
-    specificity = tp / (tp + fn*1.5 )
-    p = tn / (tn + fp*1.5 )
-    return specificity, p
+    specificity = tp / (tp + fn)
+    # p = tn / (tn + fp * 1.5)
+    #recall = balanced_accuracy_score(y_tst,y_pred)
+    f1 = f1_score(y_tst,y_pred)
+    return specificity, f1
 
 
 def objectiveSVC(trial):
@@ -110,7 +113,7 @@ def objectiveRUSBoostClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 100))),
         'sampling_strategy': 'not minority',
         # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
         'learning_rate': trail.suggest_float("learning_rate", 1e-8, 1.0, log=True)
@@ -295,8 +298,6 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
         print("no algo with that name " + algo_name)
         return None
     class_report = classification_report(y_test, y_pred)
-    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-    print("total number of cases detected {} and total number of false positive {}".format(tp,fp))
     return class_report, classifier_obj
 
 
@@ -343,19 +344,20 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
     data_encoded = data.copy()
-    X_all = data_encoded.drop(['readmitted_less_than_30', 'encounter_id', 'patient_nbr'], axis=1)
-    y_all = data_encoded['readmitted_less_than_30'].astype(bool)
+    X_all = data_encoded.drop(['readmitted', 'encounter_id', 'patient_nbr'], axis=1)
+    y_all = data_encoded['readmitted'].astype(bool)
 
     X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE)
-    #sm = SMOTE(random_state=42)
+    #
+    #sm = SMOTE(n_jobs=-1, k_neighbors=100)
     #sm = SMOTETomek(random_state=42)
-    sm = ADASYN(random_state=42)
-    X, Y = sm.fit_resample(X, Y)
+    #sm = ADASYN(random_state=42,n_neighbors=math.ceil(np.sum(Y)*0.0001))
+    #X, Y = sm.fit_resample(X, Y)
     functions = [
-        # [objectiveXgboost, "xgboost"],
-        # [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"],
+        #[objectiveXgboost, "xgboost"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
+        [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"],
         [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']]
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -375,12 +377,12 @@ if __name__ == "__main__":
         highest_specificity_trail = max(study.best_trials, key=lambda t: t.values[0])
         # lowest_los_trail = min(study.best_trials, key=lambda t: t.values[1])
         highest_roc_auc_trail = max(study.best_trials, key=lambda t: t.values[1])
-        #lowest_false_positive_trail = max(study.best_trials, key=lambda t: t.values[2])
-        #highest_true_positive_trail = max(study.best_trials, key=lambda t: t.values[3])
+        # lowest_false_positive_trail = max(study.best_trials, key=lambda t: t.values[2])
+        # highest_true_positive_trail = max(study.best_trials, key=lambda t: t.values[3])
 
         save_results(highest_specificity_trail, "highest specificity", study_name, n_trials, 0, save_path)
         # save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
         save_results(highest_roc_auc_trail, "highest p ", study_name, n_trials, 1, save_path)
-        #save_results(lowest_false_positive_trail, "lowest false positive", study_name, n_trials, 2, save_path)
-        #save_results(highest_true_positive_trail, "highest true positive", study_name, n_trials, 3, save_path)
+        # save_results(lowest_false_positive_trail, "lowest false positive", study_name, n_trials, 2, save_path)
+        # save_results(highest_true_positive_trail, "highest true positive", study_name, n_trials, 3, save_path)
         joblib.dump(study, save_path + "/study.pkl")
