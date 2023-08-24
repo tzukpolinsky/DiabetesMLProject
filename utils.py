@@ -1,7 +1,10 @@
+import math
+
 import pandas as pd
 import numpy as np
 import copy
-from sklearn.impute import SimpleImputer
+from sklearn.experimental import enable_iterative_imputer
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 
 gender_categories = {
     'Female': 0,
@@ -16,36 +19,36 @@ race_categories = {
 }
 payer_code_categories = {
     # 'nan': 'nan',
-    'MC': '2',
-    'MD': '2',
-    'HM': '2',
-    'UN': '2',
-    'BC': '2',
-    'SP': '1',
-    'CP': '2',
-    'SI': '2',
-    'DM': '3',
-    'CM': '3',
-    'CH': '3',
-    'PO': '2',
-    'WC': '2',
-    'OT': '2',
-    'OG': '2',
-    'MP': '3',
-    'FR': '2'
+    'MC': 2,
+    'MD': 1,
+    'MP': 4,
+    'BC': 4,
+    'UN': 5,
+    'SI': 2,
+    'CP': 3,
+    'HM': 5,
+    'SP': 5,
+    'WC': 2,
+    'OT': 5,
+    'OG': 3,
+    'CH': 3,
+    'PO': 3,
+    'DM': 2,
+    'CM': 4,
+    'FR': 3,
 }
 
 age_groups = {
     '[0-10)': 0,
     '[10-20)': 1,
     '[20-30)': 2,
-    '[30-40)': 2,
-    '[40-50)': 3,
-    '[50-60)': 3,
-    '[60-70)': 4,
-    '[70-80)': 4,
-    '[80-90)': 4,
-    '[90-100)': 4
+    '[30-40)': 3,
+    '[40-50)': 4,
+    '[50-60)': 5,
+    '[60-70)': 5,
+    '[70-80)': 6,
+    '[80-90)': 6,
+    '[90-100)': 6
 }
 emergencyCodeToPatternIndex = {
     1: 4,
@@ -71,11 +74,9 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
-                      'num_procedures',
-                      'admission_source_id', 'diabetesMed',
-                      'payer_code', 'number_diagnoses', 'readmitted', 'change',
-                      'num_medications', 'discharge_disposition_id']
+        col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
+                      'payer_code', 'readmitted', 'change', 'race', 'gender',
+                      'num_medications']
 
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
@@ -113,7 +114,8 @@ def prepareData(data, col_filter):
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
     filtered_data.head()
-    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    # IterativeImputer()  # KNNImputer(n_neighbors=math.ceil(filtered_data.shape[0]*0.005))#
+    imp = KNNImputer(n_neighbors=math.ceil(filtered_data.shape[0]*0.005))
     imp.fit(filtered_data)
     filtered_data_imputed = imp.transform(filtered_data)
     filtered_data = pd.DataFrame(filtered_data_imputed, columns=filtered_data.columns)

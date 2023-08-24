@@ -22,6 +22,7 @@ from imblearn.ensemble import BalancedBaggingClassifier, BalancedRandomForestCla
     EasyEnsembleClassifier
 from imblearn.over_sampling import SMOTE, ADASYN
 from imblearn.combine import SMOTETomek
+from imblearn.under_sampling import RandomUnderSampler
 
 from matplotlib import pyplot as plt
 from optuna.visualization import plot_optimization_history, plot_intermediate_values, plot_param_importances, \
@@ -31,18 +32,18 @@ from sklearn.model_selection import train_test_split
 from utils import createLabels
 import xgboost as xgb
 from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
-    average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix
-from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
+    average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix,precision_score,accuracy_score
+from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 
 X = []
 Y = []
-TEST_SIZE = 0.1
+TEST_SIZE = 0.25
 TEST_SIZE_TRAIN = 0.75
 
 
 def get_train_and_test():
-    x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=TEST_SIZE_TRAIN)
-    return x_train, x_test, y_train, y_test
+    x_train, x_tst, y_train, y_tst = train_test_split(X_smote, Y_smote, test_size=TEST_SIZE_TRAIN)
+    return x_train, x_tst, y_train, y_tst
 
 
 def getMetrics(y_tst, y_pred):
@@ -50,12 +51,13 @@ def getMetrics(y_tst, y_pred):
     # re_score = recall_score(y_test, y_pred)
     # loss = zero_one_loss(y_test, y_pred, normalize=True)
     # return avg_precision_score, loss, re_score
-    tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
-    specificity = tp / (tp + fn)
+    # tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
+    # specificity = tp / (tp + fn)
     # p = tn / (tn + fp * 1.5)
-    #recall = balanced_accuracy_score(y_tst,y_pred)
-    f1 = f1_score(y_tst,y_pred)
-    return specificity, f1
+    recall = recall_score(y_tst,y_pred)
+    bas = accuracy_score(y_tst,y_pred)
+    #f1 = precision_score(y_tst, y_pred)
+    return bas, recall
 
 
 def objectiveSVC(trial):
@@ -77,11 +79,11 @@ def objectiveGradientBoostingClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
         'max_depth': trail.suggest_int('max_depth', 2, 30),
         'min_samples_split': trail.suggest_int('min_samples_split', 2, 30),
         'learning_rate': 0.05,
-        'subsample': trail.suggest_float("learning_rate", 0.1, 1.0, log=False)
+        'subsample': trail.suggest_float("subsample", 0.1, 1.0, log=False)
 
     }
     classifier_obj = GradientBoostingClassifier(**params)
@@ -96,9 +98,9 @@ def objectiveEasyEnsembleClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'sampling_strategy': 'not minority',
-        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
+        'sampling_strategy': 'all'
+        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
     }
     classifier_obj = EasyEnsembleClassifier(**params, replacement=True)
     classifier_obj.fit(x_train, y_train)
@@ -113,9 +115,9 @@ def objectiveRUSBoostClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 100))),
-        'sampling_strategy': 'not minority',
-        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
+        'sampling_strategy': 'all',
+        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
         'learning_rate': trail.suggest_float("learning_rate", 1e-8, 1.0, log=True)
     }
     classifier_obj = RUSBoostClassifier(**params, replacement=True)
@@ -131,11 +133,11 @@ def objectiveBalancedRandomForestClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'max_depth': trail.suggest_int('max_depth', 2, 20),
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
+        'max_depth': trail.suggest_int('max_depth', 10, 20),
         'min_samples_split': trail.suggest_int('min_samples_split', 2, 50),
-        'sampling_strategy': 'not minority'
-        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.1, 1.0, log=False)
+        'sampling_strategy': 'all'
+        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
     }
     classifier_obj = BalancedRandomForestClassifier(**params,
                                                     replacement=True)
@@ -151,8 +153,9 @@ def objectiveBalancedBaggingClassifier(trail):
     global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
-        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 400, 10))),
-        'sampling_strategy': trail.suggest_categorical('sampling_strategy', [0.5, 'not minority', 'all'])
+        'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
+        'sampling_strategy': 'all'
+        #'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
     }
     classifier_obj = BalancedBaggingClassifier(replacement=True, **params)
     classifier_obj.fit(x_train, y_train)
@@ -168,10 +171,11 @@ def objectiveRandomForest(trial):
     global Y
     x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
-        'n_estimators': trial.suggest_categorical('n_estimators', list(range(50, 400, 10))),
+        'n_estimators': trial.suggest_categorical('n_estimators', list(range(10, 400, 10))),
         'max_depth': trial.suggest_int('max_depth', 2, 30),
+        'min_samples_split': trial.suggest_int('min_samples_split', 2, 30),
     }
-    classifier_obj = sklearn.ensemble.RandomForestClassifier(**params)
+    classifier_obj = RandomForestClassifier(**params)
     classifier_obj.fit(x_train, y_train)
     y_pred = classifier_obj.predict(x_test)
 
@@ -266,8 +270,8 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
         # Use accuracy for evaluation
         preds = classifier_obj.predict(dvalid)
         y_pred = np.rint(preds)  # Round to 0 or 1
-    elif algo_name == "RandomForest":
-        classifier_obj = sklearn.ensemble.RandomForestClassifier(**params)
+    elif algo_name == "RandomForestClassifier":
+        classifier_obj = RandomForestClassifier(**params)
         classifier_obj.fit(x_train, y_train)
         y_pred = classifier_obj.predict(x_test)
 
@@ -314,7 +318,7 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
         for key, value in trail.params.items():
             print("    {}: {}".format(key, value))
             file.write("    {}: {}\n".format(key, value))
-        test_results, classifier_obj = get_test_results(study_name, trail.params, X, x_test, Y, y_test)
+        test_results, classifier_obj = get_test_results(study_name, trail.params, X_smote, x_test, Y_smote, y_test)
         print("classification_report on test: ")
         print(str(test_results))
         file.write("accuracy on test:\n")
@@ -344,21 +348,25 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
     data_encoded = data.copy()
-    X_all = data_encoded.drop(['readmitted', 'encounter_id', 'patient_nbr'], axis=1)
-    y_all = data_encoded['readmitted'].astype(bool)
+    X_all = data_encoded.drop(['readmitted_less_than_30','readmitted', 'encounter_id', 'patient_nbr'], axis=1)
+    y_all = data_encoded['readmitted_less_than_30'].astype(bool)
 
     X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE)
-    #
-    #sm = SMOTE(n_jobs=-1, k_neighbors=100)
+    # sm = SMOTE(n_jobs=-1, k_neighbors=100)
     #sm = SMOTETomek(random_state=42)
-    #sm = ADASYN(random_state=42,n_neighbors=math.ceil(np.sum(Y)*0.0001))
-    #X, Y = sm.fit_resample(X, Y)
+    #sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
+    #X_smote, Y_smote = sm.fit_resample(X, Y)
+    #sm = RandomUnderSampler(sampling_strategy='majority')
+    X_smote, Y_smote = X,Y#sm.fit_resample(X, Y)
     functions = [
-        #[objectiveXgboost, "xgboost"],
+        # [objectiveXgboost, "xgboost"],
+        # [objectiveRandomForest, "RandomForestClassifier"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
+        #[objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
-        [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"],
-        [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier']]
+        [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier'],
+        [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"]
+    ]
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     result_path = sys.argv[2]
