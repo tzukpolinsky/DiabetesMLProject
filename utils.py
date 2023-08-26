@@ -3,6 +3,8 @@ import math
 import pandas as pd
 import numpy as np
 import copy
+
+import scipy.spatial.distance
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 
@@ -41,14 +43,74 @@ payer_code_categories = {
 age_groups = {
     '[0-10)': 0,
     '[10-20)': 1,
-    '[20-30)': 2,
-    '[30-40)': 3,
-    '[40-50)': 4,
-    '[50-60)': 5,
-    '[60-70)': 5,
-    '[70-80)': 6,
-    '[80-90)': 6,
-    '[90-100)': 6
+    '[20-30)': 1,
+    '[30-40)': 2,
+    '[40-50)': 2,
+    '[50-60)': 3,
+    '[60-70)': 4,
+    '[70-80)': 4,
+    '[80-90)': 5,
+    '[90-100)': 5
+}
+discharge_disposition_map = {
+    1: 1,
+    2: 4,
+    3: 3,
+    4: 3,
+    5: 3,
+    6: 4,
+    7: 1,
+    8: 3,
+    9: 4,
+    10: 4,
+    11: 5,
+    12: 4,
+    13: 2,
+    14: 3,
+    15: 3,
+    16: 3,
+    17: 3,
+    18: np.nan,
+    19: 5,
+    20: 5,
+    21: 5,
+    22: 4,
+    23: 4,
+    24: 3,
+    25: np.nan,
+    26: np.nan,
+    30: 3,
+    27: 3,
+    28: 4,
+    29: 4
+}
+admission_source_map = {
+    1: 4,
+    2: 3,
+    3: 3,
+    4: 5,
+    5: 5,
+    6: 4,
+    7: 5,
+    8: 2,
+    9: np.nan,
+    10: 5,
+    11: 8,
+    12: 8,
+    13: 8,
+    14: 8,
+    15: np.nan,
+    17: np.nan,
+    18: 3,
+    19: 4,
+    20: np.nan,
+    21: np.nan,
+    22: 4,
+    23: 8,
+    24: 8,
+    25: 4,
+    26: 4
+
 }
 emergencyCodeToPatternIndex = {
     1: 4,
@@ -74,9 +136,9 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'age', 'time_in_hospital', 'diabetesMed',
-                      'payer_code', 'readmitted', 'change', 'race', 'gender',
-                      'num_medications']
+        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
+                      'payer_code', 'change',
+                      'num_medications', 'discharge_disposition_id', 'admission_source_id', 'readmitted']
 
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
         #               'payer_code','readmitted']
@@ -107,43 +169,48 @@ def prepareData(data, col_filter):
         filtered_data.loc[filtered_data['age'] == age_group, 'age'] = replacement
 
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
-    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
+    # filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
     filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
+    filtered_data['admission_type_id'] = filtered_data['admission_type_id'].map(emergencyCodeToPatternIndex)
+    filtered_data['discharge_disposition_id'] = filtered_data['discharge_disposition_id'].map(discharge_disposition_map)
+    filtered_data['admission_source_id'] = filtered_data['admission_source_id'].map(admission_source_map)
     filtered_data.head()
     # IterativeImputer()  # KNNImputer(n_neighbors=math.ceil(filtered_data.shape[0]*0.005))#
-    imp = KNNImputer(n_neighbors=math.ceil(filtered_data.shape[0]*0.005))
+    imp = SimpleImputer(strategy="most_frequent")
     imp.fit(filtered_data)
     filtered_data_imputed = imp.transform(filtered_data)
     filtered_data = pd.DataFrame(filtered_data_imputed, columns=filtered_data.columns)
-    return filtered_data
-    # Y = {}
-    # for patient_nbr, group in filtered_data.groupby('patient_nbr'):
-    #     # if len(group) ==1:
-    #     #     continue
-    #     Y[patient_nbr] = {}
-    #     indx2 = group.index
-    #     for i, row2 in enumerate(indx2):
-    #         Y[patient_nbr][row2] = copy.deepcopy(group.loc[row2])
-    #         Y[patient_nbr][row2]['readmitted_less_than_30'] = 0
-    #         if i + 1 < len(indx2):
-    #             Y[patient_nbr][row2]['readmitted_less_than_30'] = 1 if filtered_data.loc[
-    #                                                                        list(indx2)[
-    #                                                                            i + 1], 'readmitted'] == 1 else 0
-    #
-    # collapsed_data_rows = []
-    # for patient_nbr, values in Y.items():
-    #     for row_num, row in values.items():
-    #         collapsed_data_rows.append(row)
-    # # Create the collapsed_data DataFrame using concat
-    # collapsed_data = pd.concat(collapsed_data_rows, axis=1).T
-    #
-    # collapsed_data.head()
-    # # collapsed_data.to_csv(r'C:\Users\Nitsan Cooper\OneDrive\מסמכים\DiabetesMLProject\data\collapsed_data.csv')
-    # return collapsed_data
+    # cleanClassesDuplications(filtered_data)
+    # return filtered_data
+    Y = {}
+    for patient_nbr, group in filtered_data.groupby('patient_nbr'):
+        if group.values[0][-2] == 8:
+            continue
+        Y[patient_nbr] = copy.deepcopy(group.values[0][2:])
+        count_true = 0
+        for member in group.values:
+            if member[-1]:
+                count_true += 1
+        if count_true > 0:
+            np.append(Y[patient_nbr], int(group.values.shape[0] / count_true >= 0.5))
+        else:
+            np.append(Y[patient_nbr], 0)
+    returned_data = np.array(list(Y.values()), dtype=float)
+    neg = returned_data[returned_data[:, -1] == 0]
+    pos = returned_data[returned_data[:, -1] == 1]
+    neg_bad_indices = np.array([True] * neg.shape[0])
+    pos_bad_indices = np.array([True] * pos.shape[0])
+    for i,p in enumerate(pos):
+        current_neg_bad_indices = np.linalg.norm(neg[:, :-1] - p[:-1], axis=1) >= 1
+        if (current_neg_bad_indices.shape[0] - current_neg_bad_indices.sum()) > neg.shape[0]*0.005:
+            pos_bad_indices[i] = False
+        neg_bad_indices = np.logical_and(neg_bad_indices, current_neg_bad_indices)
+    returned_data = np.concatenate([neg[neg_bad_indices], pos[pos_bad_indices]])
+    return returned_data
 
 
 def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):

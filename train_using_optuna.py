@@ -54,8 +54,8 @@ def getMetrics(y_tst, y_pred):
     # tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
     # specificity = tp / (tp + fn)
     # p = tn / (tn + fp * 1.5)
-    recall = recall_score(y_tst,y_pred)
-    bas = accuracy_score(y_tst,y_pred)
+    recall = fbeta_score(y_tst,y_pred,beta=2)
+    bas = balanced_accuracy_score(y_tst,y_pred)
     #f1 = precision_score(y_tst, y_pred)
     return bas, recall
 
@@ -209,7 +209,7 @@ def objectiveXgboost(trial):
 
     if param["booster"] in ["gbtree", "dart"]:
         # maximum depth of the tree, signifies complexity of the tree.
-        param["max_depth"] = trial.suggest_int("max_depth", 3, 20, step=2)
+        param["max_depth"] = trial.suggest_int("max_depth", 3, 19, step=2)
         # minimum child weight, larger the term more conservative the tree.
         param["min_child_weight"] = trial.suggest_int("min_child_weight", 2, 10)
         param["eta"] = trial.suggest_float("eta", 1e-8, 1.0, log=True)
@@ -347,19 +347,18 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
-    data_encoded = data.copy()
-    X_all = data_encoded.drop(['readmitted_less_than_30','readmitted', 'encounter_id', 'patient_nbr'], axis=1)
-    y_all = data_encoded['readmitted_less_than_30'].astype(bool)
+    X_all = data[:,:-1]
+    y_all = data[:,-1]
 
     X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE)
-    # sm = SMOTE(n_jobs=-1, k_neighbors=100)
+    #sm = SMOTE(n_jobs=-1)
     #sm = SMOTETomek(random_state=42)
-    #sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
-    #X_smote, Y_smote = sm.fit_resample(X, Y)
+    sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
+
     #sm = RandomUnderSampler(sampling_strategy='majority')
-    X_smote, Y_smote = X,Y#sm.fit_resample(X, Y)
+    X_smote, Y_smote = sm.fit_resample(X, Y)
     functions = [
-        # [objectiveXgboost, "xgboost"],
+        #[objectiveXgboost, "xgboost"],
         # [objectiveRandomForest, "RandomForestClassifier"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
         #[objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
