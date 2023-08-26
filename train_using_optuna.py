@@ -5,6 +5,7 @@ In this example, we optimize the validation accuracy of cancer detection using L
 We optimize both the choice of booster model and their hyperparameters.
 
 """
+import copy
 import datetime
 import math
 import os.path
@@ -29,10 +30,10 @@ from optuna.visualization import plot_optimization_history, plot_intermediate_va
     plot_slice, plot_contour, plot_parallel_coordinate
 from sklearn.model_selection import train_test_split
 
-from utils import createLabels
+from utils import createLabels, clean_overlapping_data
 import xgboost as xgb
 from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
-    average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix,precision_score,accuracy_score
+    average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix, precision_score, accuracy_score
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 
 X = []
@@ -42,7 +43,7 @@ TEST_SIZE_TRAIN = 0.75
 
 
 def get_train_and_test():
-    x_train, x_tst, y_train, y_tst = train_test_split(X_smote, Y_smote, test_size=TEST_SIZE_TRAIN)
+    x_train, x_tst, y_train, y_tst = train_test_split(X, Y, test_size=TEST_SIZE_TRAIN)
     return x_train, x_tst, y_train, y_tst
 
 
@@ -54,9 +55,9 @@ def getMetrics(y_tst, y_pred):
     # tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
     # specificity = tp / (tp + fn)
     # p = tn / (tn + fp * 1.5)
-    recall = fbeta_score(y_tst,y_pred,beta=2)
-    bas = balanced_accuracy_score(y_tst,y_pred)
-    #f1 = precision_score(y_tst, y_pred)
+    recall = fbeta_score(y_tst, y_pred, beta=2)
+    bas = balanced_accuracy_score(y_tst, y_pred)
+    # f1 = precision_score(y_tst, y_pred)
     return bas, recall
 
 
@@ -155,7 +156,7 @@ def objectiveBalancedBaggingClassifier(trail):
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
         'sampling_strategy': 'all'
-        #'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
+        # 'sampling_strategy': trail.suggest_float("sampling_strategy", 0.5, 1.0, log=False)
     }
     classifier_obj = BalancedBaggingClassifier(replacement=True, **params)
     classifier_obj.fit(x_train, y_train)
@@ -318,7 +319,7 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
         for key, value in trail.params.items():
             print("    {}: {}".format(key, value))
             file.write("    {}: {}\n".format(key, value))
-        test_results, classifier_obj = get_test_results(study_name, trail.params, X_smote, x_test, Y_smote, y_test)
+        test_results, classifier_obj = get_test_results(study_name, trail.params, X, x_test, Y, y_test)
         print("classification_report on test: ")
         print(str(test_results))
         file.write("accuracy on test:\n")
@@ -347,21 +348,30 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 
 if __name__ == "__main__":
     data = createLabels(sys.argv[1])
-    X_all = data[:,:-1]
-    y_all = data[:,-1]
+    #cleaned_data = clean_overlapping_data(data)
 
-    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE)
-    #sm = SMOTE(n_jobs=-1)
-    #sm = SMOTETomek(random_state=42)
-    sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
+    X_all = data[:, :-1]
+    y_all = data[:, -1]
+    print("amount of pos before split to test and training: " + str(y_all.sum()))
+    print("amount of neg before split to test and training: " + str(y_all.shape[0] - y_all.sum()))
+    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE,stratify=y_all)
+    data_to_clean = []
+    for i in range(Y.shape[0]):
+        data_to_clean.append(copy.deepcopy(np.append(X[i],Y[i])))
+    # sm = SMOTE(n_jobs=-1)
+    # sm = SMOTETomek(random_state=42)
+    # sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
 
-    #sm = RandomUnderSampler(sampling_strategy='majority')
-    X_smote, Y_smote = sm.fit_resample(X, Y)
+    # sm = RandomUnderSampler(sampling_strategy='majority')
+    cleaned_data = clean_overlapping_data(np.array(data_to_clean))
+    X, Y = cleaned_data[:, :-1], cleaned_data[:, -1]  # sm.fit_resample(X, Y)
+    print("amount of pos after split to test and training: " + str(Y.sum()))
+    print("amount of neg after split to test and training: " + str(Y.shape[0] - Y.sum()))
     functions = [
-        #[objectiveXgboost, "xgboost"],
+        # [objectiveXgboost, "xgboost"],
         # [objectiveRandomForest, "RandomForestClassifier"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
-        #[objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
+        # [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
         [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier'],
         [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"]

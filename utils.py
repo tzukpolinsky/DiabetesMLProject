@@ -136,8 +136,8 @@ def groupByAttrIndexToDic(data, index_of_attr):
 
 def createLabels(path_to_data, col_filter=None):
     if col_filter is None:
-        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'time_in_hospital',
-                      'payer_code', 'change',
+        col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id',
+                      'payer_code', 'change', 'insulin',
                       'num_medications', 'discharge_disposition_id', 'admission_source_id', 'readmitted']
 
         # col_filter = ['encounter_id', 'patient_nbr', 'age',
@@ -161,6 +161,21 @@ def createLabels(path_to_data, col_filter=None):
     return data
 
 
+def clean_overlapping_data(data):
+    neg = data[data[:, -1] == 0]
+    pos = data[data[:, -1] == 1]
+    neg_bad_indices = np.array([True] * neg.shape[0])
+    pos_bad_indices = np.array([True] * pos.shape[0])
+    for i, p in enumerate(pos):
+        current_neg_bad_indices = np.linalg.norm(neg[:, :-1] - p[:-1], axis=1) >= 2
+        if (current_neg_bad_indices.shape[0] - current_neg_bad_indices.sum()) > neg.shape[0] * 0.005:
+            pos_bad_indices[i] = False
+            continue
+        neg_bad_indices = np.logical_and(neg_bad_indices, current_neg_bad_indices)
+    print("filtered indices " +str(pos_bad_indices.shape[0] - pos_bad_indices.sum()))
+    return np.concatenate([neg[neg_bad_indices], pos[pos_bad_indices]])
+
+
 def prepareData(data, col_filter):
     filtered_data = data[col_filter]
     filtered_data = filtered_data.replace('?', np.nan)
@@ -172,6 +187,7 @@ def prepareData(data, col_filter):
     # filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
     filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
+    filtered_data['insulin'] = filtered_data['insulin'].map({'No': 0, 'Down': 1, 'Steady': 2,'Up':3})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
@@ -180,7 +196,7 @@ def prepareData(data, col_filter):
     filtered_data['admission_source_id'] = filtered_data['admission_source_id'].map(admission_source_map)
     filtered_data.head()
     # IterativeImputer()  # KNNImputer(n_neighbors=math.ceil(filtered_data.shape[0]*0.005))#
-    imp = SimpleImputer(strategy="most_frequent")
+    imp = SimpleImputer(strategy="mean")
     imp.fit(filtered_data)
     filtered_data_imputed = imp.transform(filtered_data)
     filtered_data = pd.DataFrame(filtered_data_imputed, columns=filtered_data.columns)
@@ -190,26 +206,27 @@ def prepareData(data, col_filter):
     for patient_nbr, group in filtered_data.groupby('patient_nbr'):
         if group.values[0][-2] == 8:
             continue
-        Y[patient_nbr] = copy.deepcopy(group.values[0][2:])
+        Y[patient_nbr] = copy.deepcopy(group.values[0][2:-1])
         count_true = 0
-        for member in group.values:
+        pos_indices = []
+        neg_indices = []
+        for i, member in enumerate(group.values):
             if member[-1]:
                 count_true += 1
+                pos_indices.append(i)
+            else:
+                neg_indices.append(i)
         if count_true > 0:
-            np.append(Y[patient_nbr], int(group.values.shape[0] / count_true >= 0.5))
+            if group.values.shape[0] / count_true >= 0.5:
+                Y[patient_nbr] = copy.deepcopy(group.values[pos_indices[0]][2:-1])
+                Y[patient_nbr] = copy.deepcopy(np.append(Y[patient_nbr], 1))
+            else:
+                Y[patient_nbr] = copy.deepcopy(group.values[neg_indices[0]][2:-1])
+                Y[patient_nbr] = copy.deepcopy(np.append(Y[patient_nbr], 0))
+
         else:
-            np.append(Y[patient_nbr], 0)
+            Y[patient_nbr] = copy.deepcopy(np.append(Y[patient_nbr], 0))
     returned_data = np.array(list(Y.values()), dtype=float)
-    neg = returned_data[returned_data[:, -1] == 0]
-    pos = returned_data[returned_data[:, -1] == 1]
-    neg_bad_indices = np.array([True] * neg.shape[0])
-    pos_bad_indices = np.array([True] * pos.shape[0])
-    for i,p in enumerate(pos):
-        current_neg_bad_indices = np.linalg.norm(neg[:, :-1] - p[:-1], axis=1) >= 1
-        if (current_neg_bad_indices.shape[0] - current_neg_bad_indices.sum()) > neg.shape[0]*0.005:
-            pos_bad_indices[i] = False
-        neg_bad_indices = np.logical_and(neg_bad_indices, current_neg_bad_indices)
-    returned_data = np.concatenate([neg[neg_bad_indices], pos[pos_bad_indices]])
     return returned_data
 
 
