@@ -266,6 +266,8 @@ def prepare_and_plot_project_statistics(data):
     plt.ylabel('Count')
     plt.title('Readmission Status')
     plt.show()
+
+    # descriptives table
     temp_df = data.drop_duplicates(subset='patient_nbr')
     age_group_mean = temp_df['age_group'].mean()
     age_group_std = temp_df['age_group'].std()
