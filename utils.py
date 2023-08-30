@@ -139,7 +139,7 @@ def prepare_and_plot_project_statistics(data):
     data['age_group'] = data['age_group'].map(age_groups)
     data['diabetesMed'] = data['diabetesMed'].map({'Yes': 1, 'No': 0})
     data['change'] = data['change'].map({'Ch': 1, 'No': 0})
-    data['readmitted'] = data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
+    #data['readmitted'] = data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0}) # This reduces the data by comibing NO with >30 --> we need them separate at this point.
     data['insulin'] = data['insulin'].map({'No': 0, 'Down': 1, 'Steady': 2, 'Up': 3})
     data['payer_code'] = data['payer_code'].map(payer_code_categories)
     data['race'] = data['race'].map(race_categories)
@@ -153,9 +153,9 @@ def prepare_and_plot_project_statistics(data):
     data = pd.DataFrame(data_imputed, columns=data.columns)
     print(data.describe())
 
-    ## percent of less than 30
-    total_readmitted_less_than_30 = (data['readmitted']).sum()
-    total_readmitted_greater_than_30 = (data['readmitted']).sum()
+    ## percent of less/more than 30. NOTE: not readmitted at all are not included
+    total_readmitted_less_than_30 = (data['readmitted'] == '<30').sum()
+    total_readmitted_greater_than_30 = (data['readmitted'] == '>30').sum()
 
     # Calculate the total number of patients in the dataset
     total_patients = len(data)
@@ -170,21 +170,22 @@ def prepare_and_plot_project_statistics(data):
 
     ## Change in meds && readmission rates
     num_patients_on_medication = data['diabetesMed'].sum()
-    print(f"The number of patients with yes medication: {num_patients_on_medication}")
+    total_change_meds = data['change'].value_counts()
+    total_readmitted = filtered_data['readmitted'].value_counts()
     total_readmitted_change_meds = data.groupby(['change', 'readmitted']).size().reset_index(name='count')
-
+    print(f"The number of patients with yes medication: {num_patients_on_medication}")
     count_percentage_df = total_readmitted_change_meds.pivot_table(index='change', columns='readmitted', values='count',
                                                                    fill_value=0)
 
     # Calc %%
     count_percentage_df['Total'] = count_percentage_df.sum(axis=1)
-    count_percentage_df['Percentage <30'] = (count_percentage_df[1.0] / count_percentage_df['Total'] * 100).round(2)
-    count_percentage_df['Percentage >30'] = (count_percentage_df[0.0] / count_percentage_df['Total'] * 100).round(2)
+    count_percentage_df['Percentage <30'] = (count_percentage_df['<30'] / count_percentage_df['Total'] * 100).round(2)
+    count_percentage_df['Percentage >30'] = (count_percentage_df['>30'] / count_percentage_df['Total'] * 100).round(2)
 
     # Print
     for change_meds in count_percentage_df.index:
-        count_less_than_30 = count_percentage_df.loc[change_meds, 1.0]
-        count_greater_than_30 = count_percentage_df.loc[change_meds, 0.0]
+        count_less_than_30 = count_percentage_df.loc[change_meds, '<30']
+        count_greater_than_30 = count_percentage_df.loc[change_meds, '>30']
         percentage_less_than_30 = count_percentage_df.loc[change_meds, 'Percentage <30']
         percentage_greater_than_30 = count_percentage_df.loc[change_meds, 'Percentage >30']
         print(f"Change in Medication: {change_meds}")
