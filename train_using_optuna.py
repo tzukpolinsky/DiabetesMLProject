@@ -11,12 +11,11 @@ import math
 import os.path
 import sys
 import joblib
-
-import matplotlib.pyplot
 import numpy as np
 import optuna
 
 import lightgbm as lgb
+import pandas as pd
 import sklearn.datasets
 import sklearn.metrics
 from imblearn.ensemble import BalancedBaggingClassifier, BalancedRandomForestClassifier, RUSBoostClassifier, \
@@ -30,41 +29,34 @@ from optuna.visualization import plot_optimization_history, plot_intermediate_va
     plot_slice, plot_contour, plot_parallel_coordinate
 from sklearn.model_selection import train_test_split
 
-from utils import createLabels, clean_overlapping_data
+from utils import create_labels, clean_overlapping_data,prepare_and_plot_project_statistics
 import xgboost as xgb
 from sklearn.metrics import classification_report, balanced_accuracy_score, roc_curve, auc, f1_score, \
     average_precision_score, fbeta_score, zero_one_loss, recall_score, confusion_matrix, precision_score, accuracy_score
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
 
-X = []
-Y = []
-TEST_SIZE = 0.25
-TEST_SIZE_TRAIN = 0.75
 
 
+"""
+the standard function for optuna objective to split the data to train and validation
+"""
 def get_train_and_test():
+    global TEST_SIZE_TRAIN
+    global X
+    global Y
     x_train, x_tst, y_train, y_tst = train_test_split(X, Y, test_size=TEST_SIZE_TRAIN)
     return x_train, x_tst, y_train, y_tst
 
-
+"""
+the metrics that you want optuna to max/min, *important* if you change the amount of metrics you need to change the amount of of directions and result saveing
+"""
 def getMetrics(y_tst, y_pred):
-    # avg_precision_score = average_precision_score(y_test, y_pred)
-    # re_score = recall_score(y_test, y_pred)
-    # loss = zero_one_loss(y_test, y_pred, normalize=True)
-    # return avg_precision_score, loss, re_score
-    # tn, fp, fn, tp = confusion_matrix(y_tst, y_pred).ravel()
-    # specificity = tp / (tp + fn)
-    # p = tn / (tn + fp * 1.5)
     recall = fbeta_score(y_tst, y_pred, beta=2)
     bas = balanced_accuracy_score(y_tst, y_pred)
-    # f1 = precision_score(y_tst, y_pred)
     return bas, recall
 
 
 def objectiveSVC(trial):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_test, y_train, y_test = get_train_and_test()
 
     svc_c = trial.suggest_float("svc_c", 1e-10, 1e10, log=True)
@@ -75,9 +67,6 @@ def objectiveSVC(trial):
 
 
 def objectiveGradientBoostingClassifier(trail):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
@@ -94,9 +83,6 @@ def objectiveGradientBoostingClassifier(trail):
 
 
 def objectiveEasyEnsembleClassifier(trail):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
@@ -111,9 +97,6 @@ def objectiveEasyEnsembleClassifier(trail):
 
 
 def objectiveRUSBoostClassifier(trail):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
@@ -129,9 +112,6 @@ def objectiveRUSBoostClassifier(trail):
 
 
 def objectiveBalancedRandomForestClassifier(trail):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 250, 10))),
@@ -149,9 +129,6 @@ def objectiveBalancedRandomForestClassifier(trail):
 
 
 def objectiveBalancedBaggingClassifier(trail):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     params = {
         'n_estimators': trail.suggest_categorical('n_estimators', list(range(10, 50, 1))),
@@ -167,9 +144,6 @@ def objectiveBalancedBaggingClassifier(trail):
 
 
 def objectiveRandomForest(trial):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_test, y_train, y_test = get_train_and_test()
     params = {
         'n_estimators': trial.suggest_categorical('n_estimators', list(range(10, 400, 10))),
@@ -184,9 +158,6 @@ def objectiveRandomForest(trial):
 
 
 def objectiveXgboost(trial):
-    global TEST_SIZE
-    global X
-    global Y
     x_train, x_tst, y_train, y_tst = get_train_and_test()
     dtrain = xgb.DMatrix(x_train, label=y_train)
     dvalid = xgb.DMatrix(x_tst, label=y_tst)
@@ -305,7 +276,10 @@ def get_test_results(algo_name, params, x_train, x_test, y_train, y_test):
     class_report = classification_report(y_test, y_pred)
     return class_report, classifier_obj
 
-
+"""
+simple results saver that run the best optuna params on the test set.
+and create a roc curve png,optuna optimization history png, and save the sklearn classification report into a file
+"""
 def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, save_path):
     with open(save_path + "/" + trail_name + "_results.txt", "w") as file:
         print("Number of finished trials for {}: {}".format(study_name, amount_of_trails))
@@ -347,59 +321,84 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 
 
 if __name__ == "__main__":
-    data = createLabels(sys.argv[1])
-    #cleaned_data = clean_overlapping_data(data)
-
-    X_all = data[:, :-1]
-    y_all = data[:, -1]
+    data = pd.read_csv(sys.argv[1])
+    prepare_and_plot_project_statistics(data)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    #the division params, no real need to change them, so it is up to the handler to determent them
+    TEST_SIZE = 0.25
+    TEST_SIZE_TRAIN = 0.75
+    # preparing the data
+    data = create_labels(sys.argv[1])
+    result_path = sys.argv[2]
+    n_trials = int(sys.argv[3])
+    usingSmote = bool(sys.argv[4])
+    smoteIndex = int(sys.argv[5])
+    usingFilter = bool(sys.argv[6])
+    #last index is the classes column
+    if usingFilter:
+        cleaned_data = clean_overlapping_data(data)
+        X_all = cleaned_data[:, :-1]
+        y_all = cleaned_data[:, -1]
+    else:
+        X_all = data[:, :-1]
+        y_all = data[:, -1]
     print("amount of pos before split to test and training: " + str(y_all.sum()))
     print("amount of neg before split to test and training: " + str(y_all.shape[0] - y_all.sum()))
-    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE,stratify=y_all)
+    X, x_test, Y, y_test = train_test_split(X_all, y_all, test_size=TEST_SIZE, stratify=y_all)
     data_to_clean = []
     for i in range(Y.shape[0]):
-        data_to_clean.append(copy.deepcopy(np.append(X[i],Y[i])))
-    # sm = SMOTE(n_jobs=-1)
-    # sm = SMOTETomek(random_state=42)
-    # sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005))
-
-    # sm = RandomUnderSampler(sampling_strategy='majority')
-    cleaned_data = clean_overlapping_data(np.array(data_to_clean))
-    X, Y = cleaned_data[:, :-1], cleaned_data[:, -1]  # sm.fit_resample(X, Y)
-    print("amount of pos after split to test and training: " + str(Y.sum()))
-    print("amount of neg after split to test and training: " + str(Y.shape[0] - Y.sum()))
+        data_to_clean.append(copy.deepcopy(np.append(X[i], Y[i])))
+    if usingSmote:
+        sm = None
+        if smoteIndex == 1:
+            sm = SMOTE(n_jobs=-1)
+        elif smoteIndex == 2:
+            sm = SMOTETomek(n_jobs=-1)
+        elif smoteIndex == 3:
+            sm = ADASYN(n_neighbors=math.ceil(np.sum(Y) * 0.005), n_jobs=-1)
+        elif smoteIndex == 4:
+            sm = RandomUnderSampler(sampling_strategy='majority')
+        else:
+            print(
+                "please choose valid index, 1 for simple smote, 2 for smote using tomek links , 3 for adasyn smote and 4 for under sampling")
+            exit(1)
+        X, Y = sm.fit_resample(X, Y)
+    #simple print to see the inbalance of the classes
+    amount_of_pos = Y.sum()
+    amount_of_neg = Y.shape[0] - amount_of_pos
+    print("amount of pos after split to test and training: {}".format(amount_of_pos))
+    print("amount of neg after split to test and training: {}".format(amount_of_neg))
+    print("ratio after split to test and training: {}".format(amount_of_pos/amount_of_neg))
+    #list of function to run through optuna, there are more in the file than this short list
     functions = [
-        # [objectiveXgboost, "xgboost"],
-        # [objectiveRandomForest, "RandomForestClassifier"],
+        [objectiveXgboost, "xgboost"],
+        [objectiveRandomForest, "RandomForestClassifier"],
         [objectiveBalancedRandomForestClassifier, "BalancedRandomForestClassifier"],
-        # [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
+        [objectiveBalancedBaggingClassifier, "BalancedBaggingClassifier"],
         [objectiveRUSBoostClassifier, 'RUSBoostClassifier'],
         [objectiveEasyEnsembleClassifier, 'EasyEnsembleClassifier'],
         [objectiveGradientBoostingClassifier, "GradientBoostingClassifier"]
     ]
-
-    optuna.logging.set_verbosity(optuna.logging.WARNING)
-    result_path = sys.argv[2]
+    #making sure the result dir is accessible
     if not os.path.isdir(result_path):
         os.mkdir(result_path)
+    #create simple results separation
     result_path = os.path.join(result_path, datetime.datetime.now().strftime("%y%m%d%H%M%S"))
     os.mkdir(result_path)
-    n_trials = int(sys.argv[3])
+
     for objective, study_name in functions:
+        #init optuna object for each objective function
         study = optuna.create_study(
             directions=[optuna.study.StudyDirection.MAXIMIZE, optuna.study.StudyDirection.MAXIMIZE],
             study_name=study_name)
         study.optimize(objective, n_trials=n_trials, n_jobs=-1, show_progress_bar=True)
+        #saving the results
         save_path = result_path + "/" + study_name
         os.mkdir(save_path)
+        #apply your own logic here, which result you want to extract from the study and how you want to save it
         highest_specificity_trail = max(study.best_trials, key=lambda t: t.values[0])
-        # lowest_los_trail = min(study.best_trials, key=lambda t: t.values[1])
         highest_roc_auc_trail = max(study.best_trials, key=lambda t: t.values[1])
-        # lowest_false_positive_trail = max(study.best_trials, key=lambda t: t.values[2])
-        # highest_true_positive_trail = max(study.best_trials, key=lambda t: t.values[3])
 
         save_results(highest_specificity_trail, "highest specificity", study_name, n_trials, 0, save_path)
-        # save_results(lowest_los_trail, "lowest loss", study_name, n_trials, 1, save_path)
         save_results(highest_roc_auc_trail, "highest p ", study_name, n_trials, 1, save_path)
-        # save_results(lowest_false_positive_trail, "lowest false positive", study_name, n_trials, 2, save_path)
-        # save_results(highest_true_positive_trail, "highest true positive", study_name, n_trials, 3, save_path)
         joblib.dump(study, save_path + "/study.pkl")

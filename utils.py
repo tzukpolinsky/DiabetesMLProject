@@ -3,8 +3,9 @@ import math
 import pandas as pd
 import numpy as np
 import copy
+from matplotlib import pyplot as plt
+import seaborn as sns
 
-import scipy.spatial.distance
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 
@@ -50,7 +51,8 @@ age_groups = {
     '[60-70)': 4,
     '[70-80)': 4,
     '[80-90)': 5,
-    '[90-100)': 5
+    '[90-100)': 5,
+    '[75-100)': 5
 }
 discharge_disposition_map = {
     1: 1,
@@ -122,19 +124,165 @@ emergencyCodeToPatternIndex = {
     8: 1,
     7: 4
 }
+"""
+for project report
+"""
 
 
-def groupByAttrIndexToDic(data, index_of_attr):
-    results = {}
-    for row in data:
-        index_value = row[index_of_attr]
-        if index_value not in results:
-            results[index_value] = []
-        results[index_value].append(row)
-    return results
+def prepare_and_plot_project_statistics(data):
+    data = data[['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id', 'diabetesMed',
+                 'payer_code', 'change', 'insulin', 'number_diagnoses',
+                 'num_medications', 'discharge_disposition_id', 'admission_source_id', 'readmitted']]
+    data = data.replace('?', np.nan)
+
+    data = data.rename(columns={'age': 'age_group'})
+    data['age_group'] = data['age_group'].map(age_groups)
+    data['diabetesMed'] = data['diabetesMed'].map({'Yes': 1, 'No': 0})
+    data['change'] = data['change'].map({'Ch': 1, 'No': 0})
+    data['readmitted'] = data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
+    data['insulin'] = data['insulin'].map({'No': 0, 'Down': 1, 'Steady': 2, 'Up': 3})
+    data['payer_code'] = data['payer_code'].map(payer_code_categories)
+    data['race'] = data['race'].map(race_categories)
+    data['gender'] = data['gender'].map(gender_categories)
+    data['admission_type_id'] = data['admission_type_id'].map(emergencyCodeToPatternIndex)
+    data['discharge_disposition_id'] = data['discharge_disposition_id'].map(discharge_disposition_map)
+    data['admission_source_id'] = data['admission_source_id'].map(admission_source_map)
+    imp = SimpleImputer(strategy="mean")
+    imp.fit(data)
+    data_imputed = imp.transform(data)
+    data = pd.DataFrame(data_imputed, columns=data.columns)
+    print(data.describe())
+
+    ## percent of less than 30
+    total_readmitted_less_than_30 = (data['readmitted']).sum()
+    total_readmitted_greater_than_30 = (data['readmitted']).sum()
+
+    # Calculate the total number of patients in the dataset
+    total_patients = len(data)
+
+    # Calculate the percentages
+    percentage_readmitted_less_than_30 = (total_readmitted_less_than_30 / total_patients) * 100
+    percentage_readmitted_greater_than_30 = (total_readmitted_greater_than_30 / total_patients) * 100
+
+    # Print the percentages
+    print(f"Percentage of patients readmitted within 30 days ('<30'): {percentage_readmitted_less_than_30:.2f}%")
+    print(f"Percentage of patients readmitted after 30 days ('>30'): {percentage_readmitted_greater_than_30:.2f}%")
+
+    ## Change in meds && readmission rates
+    num_patients_on_medication = data['diabetesMed'].sum()
+    print(f"The number of patients with yes medication: {num_patients_on_medication}")
+    total_readmitted_change_meds = data.groupby(['change', 'readmitted']).size().reset_index(name='count')
+
+    count_percentage_df = total_readmitted_change_meds.pivot_table(index='change', columns='readmitted', values='count',
+                                                                   fill_value=0)
+
+    # Calc %%
+    count_percentage_df['Total'] = count_percentage_df.sum(axis=1)
+    count_percentage_df['Percentage <30'] = (count_percentage_df[1.0] / count_percentage_df['Total'] * 100).round(2)
+    count_percentage_df['Percentage >30'] = (count_percentage_df[0.0] / count_percentage_df['Total'] * 100).round(2)
+
+    # Print
+    for change_meds in count_percentage_df.index:
+        count_less_than_30 = count_percentage_df.loc[change_meds, 1.0]
+        count_greater_than_30 = count_percentage_df.loc[change_meds, 0.0]
+        percentage_less_than_30 = count_percentage_df.loc[change_meds, 'Percentage <30']
+        percentage_greater_than_30 = count_percentage_df.loc[change_meds, 'Percentage >30']
+        print(f"Change in Medication: {change_meds}")
+        print(f"Readmitted '<30': {count_less_than_30} ({percentage_less_than_30}%)")
+        print(f"Readmitted '>30': {count_greater_than_30} ({percentage_greater_than_30}%)")
+        print()
+
+    #### FIGURES
+    # Correlation Analysis
+    correlation_matrix = data.corr()
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f')
+    plt.title('Correlation Matrix')
+    plt.show()
+
+    ## Diabetes Medication and Readmission
+    plt.figure(figsize=(8, 6))
+    sns.countplot(data=data, x='diabetesMed', hue='readmitted')
+    plt.xlabel('Diabetes Medication')
+    plt.ylabel('Count')
+    plt.title('Diabetes Medication and Readmission')
+    plt.legend(title='Readmitted', loc='upper right')
+    plt.show()
+
+    ## Admission Type and Source
+    plt.figure(figsize=(12, 6))
+    sns.countplot(data=data, x='admission_type_id', hue='admission_source_id')
+    plt.xlabel('Admission Type')
+    plt.ylabel('Count')
+    plt.title('Admission Type and Source')
+    plt.legend(title='Admission Source', loc='upper right')
+    plt.show()
+
+    ## Race and Gender
+    plt.figure(figsize=(10, 6))
+    plt.subplot(1, 2, 1)
+    data['race'].value_counts().plot(kind='pie', autopct='%1.1f%%', colors=sns.color_palette('pastel'))
+    plt.title('Distribution of Race')
+
+    plt.subplot(1, 2, 2)
+    data['gender'].value_counts().plot(kind='pie', autopct='%1.1f%%', colors=sns.color_palette('pastel'))
+    plt.title('Distribution of Gender')
+
+    plt.tight_layout()
+    plt.show()
+
+    ## Num of diagnoses
+    plt.figure(figsize=(8, 6))
+    sns.histplot(data['number_diagnoses'], bins=20, kde=False)
+    plt.xlabel('Number of Diagnoses')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of Number of Diagnoses')
+    plt.show()
+
+    ## Age group && num of diags
+    plt.figure(figsize=(8, 6))
+    sns.boxplot(data=data, x='age_group', y='number_diagnoses')
+    plt.xlabel('Age Group')
+    plt.ylabel('Number of Diagnoses')
+    plt.title('Age Group and Number of Diagnises')
+    Xlbls = ['0-10', '10-20', '20-40', '40-60', '60-100']
+    plt.xticks(ticks=range(len(Xlbls)), labels=Xlbls)
+    plt.show()
+
+    # Change in Medication and Readmission
+    plt.figure(figsize=(8, 6))
+    sns.countplot(data=data, x='change', hue='readmitted')
+    plt.xlabel('Change in Medication')
+    plt.ylabel('Count')
+    plt.title('Change in Medication and Readmission')
+    plt.legend(title='Readmitted', loc='upper right')
+    plt.show()
+
+    # Readmission Status
+    plt.figure(figsize=(8, 6))
+    sns.countplot(data=data, x='readmitted')
+    plt.xlabel('Readmission Status')
+    plt.ylabel('Count')
+    plt.title('Readmission Status')
+    plt.show()
+    temp_df = data.drop_duplicates(subset='patient_nbr')
+    age_group_mean = temp_df['age_group'].mean()
+    age_group_std = temp_df['age_group'].std()
+    gender_counts = temp_df['gender'].value_counts()
+    gender_percentage = gender_counts / len(temp_df) * 100
+    payer_code_counts = temp_df['payer_code'].value_counts()
+    payer_code_percentage = payer_code_counts / len(temp_df) * 100
+    descriptive_table = data({'Variable': ['Age Group', 'Gender', 'Payer Code'], 'Mean': [age_group_mean, '', ''],
+                              'Standard Deviation': [age_group_std, '', ''],
+                              'Percentage Male': ['', gender_percentage['Male'], ''],
+                              'Percentage Female': ['', gender_percentage['Female'], ''],
+                              'Percentage Mid Class': ['', '', payer_code_percentage['mid_class']],
+                              'Percentage Expensive': ['', '', payer_code_percentage['expensive']],
+                              'Percentage Self Pay': ['', '', payer_code_percentage['self_pay']], })
+    print(descriptive_table)
 
 
-def createLabels(path_to_data, col_filter=None):
+def create_labels(path_to_data, col_filter=None):
     if col_filter is None:
         col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id',
                       'payer_code', 'change', 'insulin',
@@ -144,20 +292,7 @@ def createLabels(path_to_data, col_filter=None):
         #               'payer_code','readmitted']
     data = pd.read_csv(path_to_data)
     ## Filtering and classifying
-    data = prepareData(data, col_filter)
-    # data['age_group'] = data['age_group'].astype(int)
-    # data['admission_type_id'] = data['admission_type_id'].astype(int)
-    # data['admission_source_id'] = data['admission_source_id'].astype(int)
-    # data['diabetesMed'] = data['diabetesMed'].astype(int)
-    # data['payer_code'] = data['payer_code'].astype(int)
-    # data['number_diagnoses'] = data['number_diagnoses'].astype(int)
-    # data['change'] = data['change'].astype(int)
-    # data['num_medications'] = data['num_medications'].astype(int)
-    # data['discharge_disposition_id'] = data['discharge_disposition_id'].astype(int)
-    # data['time_in_hospital'] = data['time_in_hospital'].astype(int)
-    # data['race'] = data['race'].astype(int)
-    # data['gender'] = data['gender'].astype(int)
-    # data['num_procedures'] = data['num_procedures'].astype(int)
+    data = prepare_data(data, col_filter)
     return data
 
 
@@ -172,11 +307,11 @@ def clean_overlapping_data(data):
             pos_bad_indices[i] = False
             continue
         neg_bad_indices = np.logical_and(neg_bad_indices, current_neg_bad_indices)
-    print("filtered indices " +str(pos_bad_indices.shape[0] - pos_bad_indices.sum()))
+    print("filtered indices " + str(pos_bad_indices.shape[0] - pos_bad_indices.sum()))
     return np.concatenate([neg[neg_bad_indices], pos[pos_bad_indices]])
 
 
-def prepareData(data, col_filter):
+def prepare_data(data, col_filter):
     filtered_data = data[col_filter]
     filtered_data = filtered_data.replace('?', np.nan)
     # Age groups:
@@ -184,10 +319,10 @@ def prepareData(data, col_filter):
         filtered_data.loc[filtered_data['age'] == age_group, 'age'] = replacement
 
     filtered_data = filtered_data.rename(columns={'age': 'age_group'})
-    # filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
+    filtered_data['diabetesMed'] = filtered_data['diabetesMed'].map({'Yes': 1, 'No': 0})
     filtered_data['change'] = filtered_data['change'].map({'Ch': 1, 'No': 0})
     filtered_data['readmitted'] = filtered_data['readmitted'].map({'NO': 0, '<30': 1, '>30': 0})
-    filtered_data['insulin'] = filtered_data['insulin'].map({'No': 0, 'Down': 1, 'Steady': 2,'Up':3})
+    filtered_data['insulin'] = filtered_data['insulin'].map({'No': 0, 'Down': 1, 'Steady': 2, 'Up': 3})
     filtered_data['payer_code'] = filtered_data['payer_code'].map(payer_code_categories)
     filtered_data['race'] = filtered_data['race'].map(race_categories)
     filtered_data['gender'] = filtered_data['gender'].map(gender_categories)
@@ -228,19 +363,3 @@ def prepareData(data, col_filter):
             Y[patient_nbr] = copy.deepcopy(np.append(Y[patient_nbr], 0))
     returned_data = np.array(list(Y.values()), dtype=float)
     return returned_data
-
-
-def createPatternsByIndex(grouped_data, attr_index, pattern_index, conversion_dict=None):
-    patterns = {}
-    for group_id, group in grouped_data.items():
-        pattern = []
-        for row in group:
-            value = row[attr_index]
-            if conversion_dict:
-                value = conversion_dict[value]
-            pattern.append(value)
-        pattern = tuple(pattern)
-        if pattern not in patterns:
-            patterns[pattern] = []
-        patterns[pattern].append(group_id)
-    return patterns
