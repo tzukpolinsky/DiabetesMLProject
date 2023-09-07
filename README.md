@@ -22,10 +22,11 @@ Unfortunately the data in the UCI file 'Diabetes 130-US hospitals for years 1999
 2. Run the script with the appropriate command-line arguments:
 
    ```bash
-   python train_using_optuna.py [path_to_diabetic_data.csv_file] [result_output_directory] [number_of_trials] [use_smote] [smote_index] [use_filter]
+   python train_using_optuna.py [path_to_diabetic_data.csv_file] [is_original_data] [result_output_directory] [number_of_trials] [use_smote] [smote_index] [use_filter]
    ```
 
    - `path_to_data_file`: Path to the diabetic_data.csv data file.
+   - `is_original_data`: indicates if using the original diabetic_data or different kind of it.
    - `result_output_directory`: Directory where the optimization results and plots will be saved.
    - `number_of_trials`: Number of optimization trials to perform.
    - `use_smote`: Whether to use Synthetic Minority Over-sampling Technique (SMOTE).

@@ -171,7 +171,7 @@ def prepare_and_plot_project_statistics(data):
     ## Change in meds && readmission rates
     num_patients_on_medication = data['diabetesMed'].sum()
     total_change_meds = data['change'].value_counts()
-    total_readmitted = filtered_data['readmitted'].value_counts()
+    total_readmitted = data['readmitted'].value_counts()
     total_readmitted_change_meds = data.groupby(['change', 'readmitted']).size().reset_index(name='count')
     print(f"The number of patients with yes medication: {num_patients_on_medication}")
     count_percentage_df = total_readmitted_change_meds.pivot_table(index='change', columns='readmitted', values='count',
@@ -288,7 +288,7 @@ def prepare_and_plot_project_statistics(data):
 def create_labels(path_to_data, col_filter=None):
     if col_filter is None:
         col_filter = ['encounter_id', 'patient_nbr', 'race', 'gender', 'age', 'admission_type_id',
-                      'payer_code', 'change', 'insulin',
+                      'payer_code', 'change', 'insulin','diabetesMed',
                       'num_medications', 'discharge_disposition_id', 'admission_source_id', 'readmitted']
 
         # col_filter = ['encounter_id', 'patient_nbr', 'age',

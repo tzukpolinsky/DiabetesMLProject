@@ -321,22 +321,27 @@ def save_results(trail, trail_name, study_name, amount_of_trails, trail_index, s
 
 
 if __name__ == "__main__":
-    data = pd.read_csv(sys.argv[1])
-    prepare_and_plot_project_statistics(data)
+    # data = pd.read_csv(sys.argv[1])
+    # prepare_and_plot_project_statistics(data)
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     #the division params, no real need to change them, so it is up to the handler to determent them
     TEST_SIZE = 0.25
     TEST_SIZE_TRAIN = 0.75
     # preparing the data
-    data = create_labels(sys.argv[1])
-    result_path = sys.argv[2]
-    n_trials = int(sys.argv[3])
-    usingSmote = bool(sys.argv[4])
-    smoteIndex = int(sys.argv[5])
-    usingFilter = bool(sys.argv[6])
+    if bool(sys.argv[2]):
+        data = create_labels(sys.argv[1])
+    else:
+        data = pd.read_csv(sys.argv[1])
+    np.savetxt("data.csv",data,delimiter=',')
+    result_path = sys.argv[3]
+    n_trials = int(sys.argv[4])
+    usingSmote = bool(sys.argv[5])
+    smoteIndex = int(sys.argv[6])
+    usingFilter = bool(sys.argv[7])
     #last index is the classes column
     if usingFilter:
         cleaned_data = clean_overlapping_data(data)
+        np.savetxt("cleaned_data.csv", cleaned_data, delimiter=',')
         X_all = cleaned_data[:, :-1]
         y_all = cleaned_data[:, -1]
     else:
